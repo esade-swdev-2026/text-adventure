@@ -1,0 +1,47 @@
+# Runs on every push and every pull request. The four checks below are exactly the
+# commands in the README's "Develop" section — CI is not a different standard, it is
+# the same one, run on a machine none of us owns. From module 4, when you start
+# merging through pull requests, a red check blocks the merge.
+name: check
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Pinned to floating major tags so security patches arrive without edits.
+      # Both run on node24: node20 actions emit a deprecation warning, and this is
+      # the first green check sixty-two students will ever see. Note that
+      # astral-sh/setup-uv stopped publishing floating major tags after v7 — the
+      # newest exact release is v10.x, so moving past v7 means pinning a full
+      # version and bumping it by hand.
+      - name: Check out the code
+        uses: actions/checkout@v7
+
+      - name: Install uv (and Python 3.13)
+        uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies from the lockfile
+        run: uv sync --locked
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Formatting
+        run: uv run ruff format --check .
+
+      - name: Types
+        run: uv run mypy src tests
+
+      - name: Tests
+        run: uv run pytest

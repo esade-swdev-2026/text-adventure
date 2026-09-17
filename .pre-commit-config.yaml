@@ -1,0 +1,15 @@
+# Optional: run the same lint, format and type checks before each commit instead of
+# waiting for CI. Install with `uv run pre-commit install`. Not required to pass the
+# course — CI is the referee — but it catches things earlier.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.11.2
+    hooks:
+      - id: mypy
+        additional_dependencies: [typer]
