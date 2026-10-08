@@ -1,5 +1,5 @@
 [project]
-name = "app"
+name = "text-adventure"
 version = "0.1.0"
 description = "Group project for Software Development for Business"
 readme = "README.md"
@@ -9,14 +9,14 @@ dependencies = [
 ]
 
 [project.scripts]
-app = "app.cli:app"
+text-adventure = "text_adventure.cli:app"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/app"]
+packages = ["src/text_adventure"]
 
 [dependency-groups]
 dev = [
