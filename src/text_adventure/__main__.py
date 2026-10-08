@@ -1,4 +1,4 @@
-from app.cli import app
+from text_adventure.cli import app
 
 if __name__ == "__main__":
     app()
