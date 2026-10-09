@@ -1,24 +1,21 @@
-from collections.abc import Callable
-from dataclasses import dataclass, field
-from enum import Enum, auto
-
 from .models import Container, Door, Item, Room
 
 
-class Action(Enum):
-    OPEN = auto()
-    TAKE = auto()
-    DOOR = auto()
-    INVENTORY = auto()
-    QUIT = auto()
+class Action:
+    OPEN = "open"
+    TAKE = "take"
+    DOOR = "door"
+    INVENTORY = "inventory"
+    QUIT = "quit"
 
 
-@dataclass
 class Option:
 
-    label: str
-    action: Action
-    target: Item | Container | Door | None = None
+    def __init__(self, label: str, action: str,
+                 target: Item | Container | Door | None = None):
+        self.label = label
+        self.action = action
+        self.target = target
 
 
 def build_options(room: Room) -> list[Option]:
@@ -49,7 +46,7 @@ def show_menu(room: Room, options: list[Option]) -> None:
         print(f"  {number}. {option.label}")
 
 
-def read_choice(option_count: int, read: Callable[[str], str] = input) -> int:
+def read_choice(option_count: int, read=input) -> int:
    
     while True:
         text = read("> ").strip()
