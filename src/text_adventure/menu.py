@@ -10,9 +10,7 @@ class Action:
 
 
 class Option:
-
-    def __init__(self, label: str, action: str,
-                 target: Item | Container | Door | None = None):
+    def __init__(self, label: str, action: str, target: Item | Container | Door | None = None):
         self.label = label
         self.action = action
         self.target = target
@@ -39,7 +37,7 @@ def build_options(room: Room) -> list[Option]:
 
 
 def show_menu(room: Room, options: list[Option]) -> None:
-   
+
     print(f"\nYou are in {room.name}.")
     print("What do you want to do?")
     for number, option in enumerate(options, start=1):
@@ -47,7 +45,7 @@ def show_menu(room: Room, options: list[Option]) -> None:
 
 
 def read_choice(option_count: int, read=input) -> int:
-   
+
     while True:
         text = read("> ").strip()
         if not text:
@@ -65,7 +63,7 @@ def read_choice(option_count: int, read=input) -> int:
 
 
 def ask_player(room: Room) -> Option:
-  
+
     options = build_options(room)
     show_menu(room, options)
     choice = read_choice(len(options))
