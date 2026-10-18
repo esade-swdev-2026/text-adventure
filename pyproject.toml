@@ -1,10 +1,11 @@
 [project]
 name = "text-adventure"
-version = "0.1.0"
+version = "0.5.0"
 description = "Group project for Software Development for Business"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "rich>=13",
     "typer>=0.12",
 ]
 

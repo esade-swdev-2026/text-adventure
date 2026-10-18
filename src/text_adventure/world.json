@@ -1,0 +1,104 @@
+{
+  "intro": "The power died an hour ago. Somebody wanted you in the dark. Find a way out.",
+  "ending": "Cold air rushes in. Beyond the door the city glitters under a wet night sky, and for the first time tonight you can see where you're going.",
+  "rooms": [
+    {
+      "id": "electrical",
+      "name": "Electrical Room",
+      "description": "A lone lamp swings overhead. Beyond its light, the walls hum.",
+      "art": "art/electrical_room.txt",
+      "items": [
+        {
+          "name": "flashbulb",
+          "description": "an old camera flashbulb",
+          "floor_text": "A flashbulb lies in the light.",
+          "sprite": [
+            9,
+            30
+          ]
+        }
+      ],
+      "containers": [
+        {
+          "name": "toolbox",
+          "closed_text": "A toolbox waits on the floor.",
+          "open_text": "The toolbox gapes open.",
+          "sprite": [
+            6,
+            12
+          ],
+          "contents": [
+            {
+              "name": "screwdriver",
+              "description": "a worn flathead",
+              "sprite": [
+                8,
+                14
+              ],
+              "floor": [
+                9,
+                40
+              ]
+            },
+            {
+              "name": "wrench",
+              "description": "heavy and rusted",
+              "sprite": [
+                8,
+                18
+              ],
+              "floor": [
+                8,
+                44
+              ]
+            }
+          ]
+        },
+        {
+          "name": "fuse box",
+          "required_item": "screwdriver",
+          "closed_text": "A fuse box is screwed shut.",
+          "open_text": "The fuse box hangs open.",
+          "sprite": [
+            2,
+            36
+          ],
+          "contents": [
+            {
+              "name": "key",
+              "description": "small and brass",
+              "sprite": [
+                4,
+                38
+              ],
+              "floor": [
+                9,
+                47
+              ]
+            },
+            {
+              "name": "fuse",
+              "description": "a blown glass fuse",
+              "sprite": [
+                4,
+                43
+              ],
+              "floor": [
+                8,
+                51
+              ]
+            }
+          ]
+        }
+      ],
+      "door": {
+        "required_item": "key",
+        "next_room": null,
+        "sprite": [
+          2,
+          54
+        ]
+      }
+    }
+  ]
+}
