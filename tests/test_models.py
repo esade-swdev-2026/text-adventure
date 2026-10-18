@@ -3,7 +3,11 @@ import pytest
 from text_adventure.models import CAPACITY, Container, Door, Inventory, Item, Player, Room
 
 
-def make_room(door=None, containers=None, items=None) -> Room:
+def make_room(
+    door: Door | None = None,
+    containers: list[Container] | None = None,
+    items: list[Item] | None = None,
+) -> Room:
     return Room("Lab", "A dark lab.", door or Door(None), containers, items)
 
 
@@ -106,3 +110,36 @@ def test_player_drop_item_puts_it_on_floor() -> None:
     player.drop_item(item)
     assert room.items == [item]
     assert player.inventory.items == []
+
+
+# Lookups
+
+
+def test_find_container_by_name() -> None:
+    desk = Container("desk")
+    room = make_room(containers=[desk])
+    assert room.find_container("desk") is desk
+    assert room.find_container("chest") is None
+
+
+def test_find_visible_item_cannot_see_into_closed_container() -> None:
+    key = Item("key")
+    desk = Container("desk", [key])
+    room = make_room(containers=[desk])
+    assert room.find_visible_item("key") is None
+    desk.open(Inventory())
+    assert room.find_visible_item("key") is key
+
+
+def test_inventory_find_and_count() -> None:
+    key = Item("key")
+    inventory = Inventory([key, Item("coin")])
+    assert inventory.find("key") is key
+    assert inventory.find("lamp") is None
+    assert inventory.count() == 2
+
+
+def test_show_inventory_returns_a_copy() -> None:
+    inventory = Inventory([Item("key")])
+    inventory.show_inventory().clear()
+    assert inventory.count() == 1
