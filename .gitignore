@@ -8,3 +8,10 @@ build/
 .ruff_cache/
 .pytest_cache/
 .coverage
+
+# Local working notes and course material: never published
+CLAUDE.md
+.claude/
+PLAN-*.md
+*.pdf
+.DS_Store
