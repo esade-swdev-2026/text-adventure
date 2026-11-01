@@ -4,7 +4,18 @@ from collections.abc import Collection, Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from typing import Any
 
-from .art import CLOSED, OPEN, Art, Position, floor_key, sprite_key
+from .art import (
+    CLOSED,
+    CLOSEUP,
+    ICON,
+    OPEN,
+    Art,
+    Picture,
+    PictureSize,
+    Position,
+    floor_key,
+    sprite_key,
+)
 from .models import DOOR, Container, Door, Item, Room
 
 
@@ -18,10 +29,23 @@ class World:
     intro: str
     ending: str
     art: Mapping[str, Art]  # keyed by room name
+    icons: Mapping[str, Picture] = field(default_factory=dict)  # keyed by item name
+    closeups: Mapping[str, Picture] = field(default_factory=dict)  # keyed by item/container name
+    door_closeups: Mapping[str, Picture] = field(default_factory=dict)  # keyed by room name
 
     def art_for(self, room: Room) -> Art:
         """The drawing for this room, with its object placements."""
         return self.art[room.name]
+
+    def icon_for(self, item_name: str) -> Picture | None:
+        """The item's inventory icon, or None if it has none yet."""
+        return self.icons.get(item_name)
+
+    def closeup_for(self, room: Room, name: str) -> Picture | None:
+        """The close-up of an item, a container or this room's door, or None if it has none."""
+        if name == DOOR:
+            return self.door_closeups.get(room.name)
+        return self.closeups.get(name)
 
     def rooms(self) -> list[Room]:
         """Every room, in the order the doors lead through them."""
@@ -50,6 +74,28 @@ def summarize(world: World) -> WorldSummary:
         items=len(_all_items(rooms)),
         first_room=world.first_room.name,
     )
+
+
+def missing_pictures(world: World) -> list[str]:
+    """Each portable item without an icon and each object without a close-up.
+
+    `check` shows these as warnings: the game runs without them, but E2 will draw them.
+    """
+    warnings: list[str] = []
+    for room in world.rooms():
+        for item in _all_items([room]):
+            if item.portable and item.name not in world.icons:
+                warnings.append(f'item "{item.name}" has no icon')
+            if item.name not in world.closeups:
+                warnings.append(f'item "{item.name}" has no close-up')
+        warnings += [
+            f'container "{container.name}" has no close-up'
+            for container in room.containers
+            if container.name not in world.closeups
+        ]
+        if room.name not in world.door_closeups:
+            warnings.append(f'room "{room.name}": the door has no close-up')
+    return warnings
 
 
 def _get[T](json_object: Any, key: str, kind: type[T], where: str, default: T | None = None) -> T:
@@ -102,6 +148,35 @@ class _RoomDrawing:
             self.needed_sprites += sprites
 
 
+@dataclass
+class _Pictures:
+    """The icons and close-ups loaded from disk, and which object uses which."""
+
+    loaded: Mapping[str, Picture]
+    icons: dict[str, Picture] = field(default_factory=dict)
+    closeups: dict[str, Picture] = field(default_factory=dict)
+    door_closeups: dict[str, Picture] = field(default_factory=dict)
+
+    def find(self, json_object: Any, key: str, size: PictureSize, where: str) -> Picture | None:
+        """The picture named by `key` ("icon" or "closeup"), checked to be the right kind."""
+        path = _optional_str(json_object, key, where)
+        if path is None:
+            return None
+        if path not in self.loaded:
+            raise WorldError(f'{where}: no picture loaded for "{path}"')
+        picture = self.loaded[path]
+        if picture.size != size:
+            raise WorldError(
+                f'{where}: "{key}" needs {size.kind} size ({size.width}x{size.height}), '
+                f"but {path} is {picture.size.kind} size"
+            )
+        return picture
+
+    def add(self, found: dict[str, Picture], name: str, picture: Picture | None) -> None:
+        if picture is not None:
+            found[name] = picture
+
+
 @dataclass(frozen=True)
 class _BuiltRoom:
     room: Room
@@ -113,13 +188,16 @@ def _both_states(name: str) -> list[str]:
     return [sprite_key(name, OPEN), sprite_key(name, CLOSED)]
 
 
-def _build_item(item_json: Any, where: str, drawing: _RoomDrawing) -> Item:
-    """Build an item, recording where it is drawn ("sprite") and where it lies once dropped."""
+def _build_item(item_json: Any, where: str, drawing: _RoomDrawing, pictures: _Pictures) -> Item:
+    """Build an item, recording where it is drawn ("sprite"), where it lies once dropped,
+    and its icon and close-up."""
     name = _get(item_json, "name", str, where)
     _check_name(name, where)
     where = f"{where} {name}"
     drawing.place(name, _placement(item_json, where), [sprite_key(name)])
     drawing.place(floor_key(name), _placement(item_json, where, "floor"), [sprite_key(name)])
+    pictures.add(pictures.icons, name, pictures.find(item_json, "icon", ICON, where))
+    pictures.add(pictures.closeups, name, pictures.find(item_json, "closeup", CLOSEUP, where))
     return Item(
         name,
         _get(item_json, "description", str, where, ""),
@@ -128,15 +206,18 @@ def _build_item(item_json: Any, where: str, drawing: _RoomDrawing) -> Item:
     )
 
 
-def _build_container(container_json: Any, where: str, drawing: _RoomDrawing) -> Container:
+def _build_container(
+    container_json: Any, where: str, drawing: _RoomDrawing, pictures: _Pictures
+) -> Container:
     name = _get(container_json, "name", str, where)
     _check_name(name, where)
     where = f'container "{name}"'
     contents = [
-        _build_item(item_json, f"{where} item", drawing)
+        _build_item(item_json, f"{where} item", drawing, pictures)
         for item_json in _get(container_json, "contents", list, where, [])
     ]
     drawing.place(name, _placement(container_json, where), _both_states(name))
+    pictures.add(pictures.closeups, name, pictures.find(container_json, "closeup", CLOSEUP, where))
     return Container(
         name,
         contents,
@@ -167,20 +248,24 @@ def _room_art(room_json: Any, where: str, art: Mapping[str, Art], drawing: _Room
     return replace(room_art, placements=drawing.placements)
 
 
-def _build_room(room_json: Any, where: str, art: Mapping[str, Art]) -> _BuiltRoom:
+def _build_room(
+    room_json: Any, where: str, art: Mapping[str, Art], pictures: _Pictures
+) -> _BuiltRoom:
     name = _get(room_json, "name", str, where)
     where = f'room "{name}"'
     drawing = _RoomDrawing()
     items = [
-        _build_item(item_json, f"{where} item", drawing)
+        _build_item(item_json, f"{where} item", drawing, pictures)
         for item_json in _get(room_json, "items", list, where, [])
     ]
     containers = [
-        _build_container(container_json, f"{where} container", drawing)
+        _build_container(container_json, f"{where} container", drawing, pictures)
         for container_json in _get(room_json, "containers", list, where, [])
     ]
     door_json = _get(room_json, "door", dict, where)
     door = _build_door(door_json, where, drawing)
+    door_closeup = pictures.find(door_json, "closeup", CLOSEUP, f"{where} door")
+    pictures.add(pictures.door_closeups, name, door_closeup)
     room = Room(name, _get(room_json, "description", str, where), door, containers, items)
     return _BuiltRoom(
         room,
@@ -228,8 +313,48 @@ def art_paths(world_json: Any) -> list[str]:
     ]
 
 
-def build_world(world_json: Any, art: Mapping[str, Art]) -> World:
-    """Turn parsed world.json data into linked rooms. Raise WorldError on any broken rule."""
+def picture_paths(world_json: Any) -> dict[str, PictureSize]:
+    """Every icon and close-up file the world names, with the size it must be drawn at.
+
+    Malformed data is skipped here; build_world reports it.
+    """
+    paths: dict[str, PictureSize] = {}
+
+    def note(json_object: Any, kinds: dict[str, PictureSize]) -> None:
+        if isinstance(json_object, dict):
+            for key, size in kinds.items():
+                if isinstance(json_object.get(key), str):
+                    paths.setdefault(json_object[key], size)
+
+    item_kinds = {"icon": ICON, "closeup": CLOSEUP}
+    object_kinds = {"closeup": CLOSEUP}
+    for room in _list(world_json, "rooms"):
+        for item in _list(room, "items"):
+            note(item, item_kinds)
+        for container in _list(room, "containers"):
+            note(container, object_kinds)
+            for item in _list(container, "contents"):
+                note(item, item_kinds)
+        if isinstance(room, dict):
+            note(room.get("door"), object_kinds)
+    return paths
+
+
+def _list(json_object: Any, key: str) -> list[Any]:
+    """`key` of a JSON object if it is a list, else an empty list."""
+    value = json_object.get(key) if isinstance(json_object, dict) else None
+    return value if isinstance(value, list) else []
+
+
+def build_world(
+    world_json: Any, art: Mapping[str, Art], pictures: Mapping[str, Picture] | None = None
+) -> World:
+    """Turn parsed world.json data into linked rooms. Raise WorldError on any broken rule.
+
+    `art` holds each room's parsed art file and `pictures` each icon and close-up file,
+    both keyed by the path world.json uses.
+    """
+    found = _Pictures(pictures or {})
     rooms_json = _get(world_json, "rooms", list, "world")
     if not rooms_json:
         raise WorldError("world needs at least one room")
@@ -241,7 +366,7 @@ def build_world(world_json: Any, art: Mapping[str, Art]) -> World:
         room_id = _get(room_json, "id", str, f"room {index + 1}")
         if room_id in rooms:
             raise WorldError(f'two rooms have the id "{room_id}"')
-        built = _build_room(room_json, f"room {room_id}", art)
+        built = _build_room(room_json, f"room {room_id}", art, found)
         if built.room.name in room_art:
             raise WorldError(f'two rooms are called "{built.room.name}"')
         rooms[room_id], next_ids[room_id] = built.room, built.next_id
@@ -255,6 +380,9 @@ def build_world(world_json: Any, art: Mapping[str, Art]) -> World:
         _get(world_json, "intro", str, "world", ""),
         _get(world_json, "ending", str, "world", ""),
         room_art,
+        found.icons,
+        found.closeups,
+        found.door_closeups,
     )
 
 

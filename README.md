@@ -65,10 +65,15 @@ uv run text-adventure --help
 uv run text-adventure check src/text_adventure/world.json
 ```
 
-`check` loads a world file, checks every rule and prints a summary:
+`check` loads a world file, checks every rule and prints a summary, then a warning for each
+item without an inventory icon and each object without a close-up (the art is still being
+drawn, so these don't fail the check):
 
 ```
 OK: src/text_adventure/world.json has 1 room(s), 2 containers and 5 items. The game starts in the Electrical Room.
+Warning: item "flashbulb" has no icon.
+Warning: item "flashbulb" has no close-up.
+...
 ```
 
 Bad input is reported in one line, with exit code 1 and no traceback:
@@ -153,10 +158,10 @@ src/text_adventure/   the package; pure modules never print or read files
   terminal.py         I/O: draw the screen with rich, read a line
   cli.py              I/O: the play and check commands, file reading, game loop
   world.json          the room, its items and texts (the story)
-  art/                the room drawings
+  art/                the room drawings; icons/ and closeups/ hold the object pictures
   __main__.py         lets `python -m text_adventure` work
 tests/                pytest tests, mirroring src/
-docs/SCREEN-SPEC.md   the screen design: size, layout, palette, every state
+docs/SCREEN-SPEC.md   the screen design (next version): size, layout, palette, every state
 pyproject.toml        dependencies and tool configuration — the single source of truth
 ARCHITECTURE.md       full design: classes, game loop, world file, decisions
 ```
