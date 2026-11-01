@@ -168,11 +168,11 @@ Every module is either **pure** (works on plain data, never prints, never reads 
 | `models.py` | pure | `Item`, `Door`, `Container`, `Room`, `Player`, `Inventory`, the name lookups, `CAPACITY` and the reserved name `DOOR`. |
 | `commands.py` | pure | `Verb`, the alias table, `Command(verb, name)` and `parse(text) -> Command \| None`, which raises `CommandError`. |
 | `game.py` | pure | `apply_command(player, command) -> Outcome` (the rules) and `play_turn(player, text)`, which parses first. `Outcome` holds `message`, `error`, `won` and `quit`. |
-| `world.py` | pure | `build_world(data, art) -> World` checks the parsed JSON and raises `WorldError`. `World` holds `first_room`, `intro`, `ending` and each room's `Art`. |
-| `art.py` | pure | `parse_art(text) -> Art` and `compose(art, room) -> list[str]`, which draws each object's sprite for its current state. Widths are in terminal cells. |
+| `world.py` | pure | `build_world(data, art, pictures) -> World` checks the parsed JSON and raises `WorldError`. `World` holds `first_room`, `intro`, `ending`, each room's `Art` and each object's icon and close-up. `missing_pictures(world)` lists the art still to draw. |
+| `art.py` | pure | `parse_art(text) -> Art` and `compose(art, room) -> list[str]`, which draws each object's sprite for its current state. `parse_picture(text, size) -> Picture` reads an icon or close-up. Widths are in terminal cells. |
 | `screen.py` | pure | `describe_room`, `available_commands`, `build_screen` / `build_win_screen` and `layout(screen)`, which returns every row as text tagged with a role (border, art, error…). |
 | `terminal.py` | I/O | `Terminal`: draws a screen with rich (one named palette, centred, cleared between turns), reads a line, prints "Goodbye.". |
-| `cli.py` | I/O | Typer commands `play [--world PATH]` and `check PATH`. Reads `world.json` and the art files, runs the loop, turns every load error into `Error: …` and exit code 1, and handles Ctrl-C / Ctrl-D. |
+| `cli.py` | I/O | Typer commands `play [--world PATH]` and `check PATH`. Reads `world.json`, the art files and the picture files, runs the loop, turns every load error into `Error: …` and exit code 1, and handles Ctrl-C / Ctrl-D. |
 | `world.json`, `art/*.txt` | data | The story and the drawings. |
 
 The old numbered `menu.py` is gone: typed commands replaced it.
@@ -217,7 +217,8 @@ Dependencies only point downward. Lower layers know nothing about the layers abo
 | `Outcome`   | `game.py`     | What one command did: the message, and whether it was an error, a win or a quit. |
 | `Art`       | `art.py`      | Background rows, named sprites, and where each object's sprite goes.     |
 | `Position`, `Box`, `DrawnObject` | `art.py` | A cell (row, column); the rectangle a sprite covers, used for the spotlight; one object drawn right now (name, sprite section, position). |
-| `World`     | `world.py`    | The first room, intro, ending and each room's art.                       |
+| `Picture`, `Frame`, `PictureSize` | `art.py` | An icon or close-up: one `Frame` (rows plus a colour letter per cell) per state, at a fixed `PictureSize` (`ICON` 8 × 3, `CLOSEUP` 92 × 11). |
+| `World`     | `world.py`    | The first room, intro, ending, each room's art, and the icons and close-ups (`icon_for`, `closeup_for`). |
 | `Screen`    | `screen.py`   | Everything on screen for one turn, as plain strings.                     |
 
 ### Name lookups in `models.py`
@@ -294,6 +295,12 @@ command changed is drawn bold for one turn. The whole screen is 76 × 23 cells a
 80 × 24 terminal. Smaller windows get
 a one-line request to resize.
 
+**Next layout.** [docs/SCREEN-SPEC.md](docs/SCREEN-SPEC.md) now specifies the next design
+(epics E1-E6): a 100 × 30 minimum, the room on top, a verb panel and four inventory icon
+slots below it, a short message history, an inspect view with close-ups, an intro and an
+ending screen, and a 256-colour noir palette. The `Try` row goes away. The paragraphs above
+describe the v0.5 code until E2 lands.
+
 `look` stays as a command: it redraws the screen.
 
 ---
@@ -319,7 +326,8 @@ without touching the default one.
       "art": "art/electrical_room.txt",
       "items": [
         { "name": "flashbulb", "description": "an old camera flashbulb",
-          "floor_text": "A flashbulb glints in the dust.", "sprite": [4, 44] }
+          "floor_text": "A flashbulb glints in the dust.", "sprite": [4, 44],
+          "icon": "art/icons/flashbulb.txt", "closeup": "art/closeups/flashbulb.txt" }
       ],
       "containers": [
         {
@@ -328,10 +336,12 @@ without touching the default one.
           "closed_text": "A fuse box is screwed shut on the wall.",
           "open_text": "The fuse box hangs open.",
           "sprite": [1, 26],
+          "closeup": "art/closeups/fuse_box.txt",
           "contents": [{ "name": "key", "description": "small and brass" }]
         }
       ],
-      "door": { "required_item": "key", "next_room": null, "sprite": [0, 52] }
+      "door": { "required_item": "key", "next_room": null, "sprite": [0, 52],
+                "closeup": "art/closeups/door.txt" }
     }
   ]
 }
@@ -346,6 +356,8 @@ without touching the default one.
   art (row 0, column 0 is the top-left). An object without `sprite` is not drawn. An item can
   also have `floor`: where it lies once dropped (otherwise it is drawn back at `sprite`).
 - Names are what the player types, so they are written in lower case and kept short.
+- `icon` (items) and `closeup` (items, containers, the door) name picture files, relative to
+  the world file like `art`. Both are optional for now: `check` warns about each one missing.
 
 ### What the loader checks
 
@@ -359,7 +371,14 @@ without touching the default one.
   match);
 - a `required_item` names an item that doesn't exist anywhere in the world;
 - a door has no `required_item`;
-- a field has the wrong type, or the art file lacks a sprite section that `sprite` needs.
+- a field has the wrong type, or the art file lacks a sprite section that `sprite` needs;
+- an `icon` or `closeup` names a picture that wasn't loaded, or one of the wrong size (an icon
+  file used as a close-up, or the other way round).
+
+A picture file that is missing, too big or malformed stops loading with `Error: <file>: …` and
+exit code 1, like the room art. A missing `icon` or `closeup` is not an error: `check` prints
+one `Warning:` line per missing picture after its summary and still exits 0, because the art is
+drawn after the format (E2.4, E3.2).
 
 The loader does **not** check that the puzzle can be solved. That is covered by tests that
 play the default world from start to finish (section 11).
@@ -395,6 +414,38 @@ Plain UTF-8 text, split into sections by a `[name]` line:
   an editor without changing anything.
 - Every character must be exactly one terminal cell wide. `parse_art` rejects emoji such as
   `⚡`, which many terminals draw two cells wide; use `ϟ` instead.
+
+### Picture files (icons and close-ups)
+
+Each icon and close-up is its own UTF-8 file, in the same `[section]` syntax as the room art.
+The full rules are in [docs/SCREEN-SPEC.md](docs/SCREEN-SPEC.md) §7.
+
+```
+[closed]
+┌──────────┐
+│ ▫  ϟ   ▫ │
+└──────────┘
+
+[closed:colors]
+ssssssssssss
+ss sr  s ss
+ssssssssssss
+
+[open]
+...
+```
+
+- Each `[state]` section is a frame. The first frame is the default, used when the object's
+  state (`closed`, `open`, `locked`, `power on`…) has no frame of its own.
+- `[state:colors]` is optional: one letter per cell, ` ` `.` `s` shadow, `#` lit, `*` light
+  source, `n` night, `r` danger, `f` plain. A missing map means all shadow.
+- An icon must fit in 8 × 3 cells, a close-up in 92 × 11. Both are padded to exactly that size.
+- `cli.load_world` reads every file `picture_paths(world_json)` lists, with the size it is used
+  at, and `parse_picture` parses it. `build_world` checks every reference and stores the
+  pictures on the `World`. Nothing draws them yet; E2 and E3 do.
+
+The packaged world has one example of each: `art/icons/screwdriver.txt` and
+`art/closeups/screwdriver.txt`.
 
 ### The v0.5 room
 
@@ -443,10 +494,12 @@ test pure functions. `conftest.py` loads a fresh copy of the packaged world for 
   carried, dropping, and the three name lookups.
 - **Commands** (`test_commands.py`): case, extra spaces, a leading `the`, multi-word names,
   aliases, empty input, an unknown verb, a missing object and an unexpected object.
-- **Art** (`test_art.py`): sprite placement, state swaps, a taken item disappearing, clipping,
+- **Art** (`test_art.py`): picture frames padded to size, bad pictures rejected, the default
+  frame, the example pictures' sizes; sprite placement, state swaps, a taken item disappearing, clipping,
   missing or malformed sections, transparency, and that every composed line is exactly 72 cells in
   every state of the real room.
-- **World** (`test_world.py`): the packaged world loads, and each rule in section 8 rejects a
+- **World** (`test_world.py`): pictures are found by object, missing ones are listed (scenery needs
+  no icon), the packaged world loads, and each rule in section 8 rejects a
   small broken example.
 - **Game** (`test_game.py`): locked container, tool kept, full inventory, drop and take back,
   locked door, winning uses the key, unknown names, empty input and quit.
@@ -454,7 +507,8 @@ test pure functions. `conftest.py` loads a fresh copy of the packaged world for 
   fits 80 × 24, every screen in a playthrough has the same height, the win screen, the prompt,
   the spotlight on the changed object, the inventory in the border and the ASCII fallback.
 - **CLI** (`test_cli.py`): a scripted win exits 0, end of input says goodbye, a missing world
-  file and invalid JSON exit 1 with `Error:`, and `check` prints a summary.
+  file, invalid JSON and a bad picture file exit 1 with `Error:`, and `check` prints a summary
+  and a warning for each missing icon or close-up.
 
 The real terminal (layout at 80 × 24 and 120 × 40, colours, Ctrl-C/Ctrl-D, a too-small window)
 is checked by playing the real game in a terminal before each merge. Anything that can be

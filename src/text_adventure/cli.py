@@ -8,12 +8,20 @@ from typing import Annotated
 
 import typer
 
-from .art import Art, ArtError, parse_art
+from .art import Art, ArtError, Picture, parse_art, parse_picture
 from .game import play_turn
 from .models import Inventory, Player
 from .screen import Tone, build_screen, build_win_screen
 from .terminal import Terminal
-from .world import World, WorldError, art_paths, build_world, summarize
+from .world import (
+    World,
+    WorldError,
+    art_paths,
+    build_world,
+    missing_pictures,
+    picture_paths,
+    summarize,
+)
 
 GOODBYE = "Goodbye."
 DEFAULT_WORLD = "world.json"
@@ -25,13 +33,25 @@ app = typer.Typer(
 )
 
 
+def _read(folder: Traversable, relative: str) -> str:
+    """Read a file named in world.json, relative to the world file's folder."""
+    return folder.joinpath(*relative.split("/")).read_text(encoding="utf-8")
+
+
 def load_world(world_file: Traversable, folder: Traversable) -> World:
-    """Read world.json and the art files it names (relative to `folder`), then build the world."""
+    """Read world.json, the room art and the pictures it names (relative to `folder`),
+    then build the world."""
     world_json = json.loads(world_file.read_text(encoding="utf-8"))
     art: dict[str, Art] = {}
     for relative in art_paths(world_json):
-        art[relative] = parse_art(folder.joinpath(*relative.split("/")).read_text(encoding="utf-8"))
-    return build_world(world_json, art)
+        art[relative] = parse_art(_read(folder, relative))
+    pictures: dict[str, Picture] = {}
+    for relative, size in picture_paths(world_json).items():
+        try:
+            pictures[relative] = parse_picture(_read(folder, relative), size)
+        except ArtError as error:
+            raise ArtError(f"{relative}: {error}") from error
+    return build_world(world_json, art, pictures)
 
 
 def _load_or_exit(path: Path | None) -> World:
@@ -96,12 +116,15 @@ def play(world: WorldOption = None) -> None:
 
 @app.command()
 def check(path: Annotated[Path, typer.Argument(help="World file to check.")]) -> None:
-    """Load a world file, check every rule, and print a summary."""
-    summary = summarize(_load_or_exit(path))
+    """Load a world file, check every rule, and print a summary and any missing art."""
+    world = _load_or_exit(path)
+    summary = summarize(world)
     typer.echo(
         f"OK: {path} has {summary.rooms} room(s), {summary.containers} containers and "
         f"{summary.items} items. The game starts in the {summary.first_room}."
     )
+    for warning in missing_pictures(world):
+        typer.echo(f"Warning: {warning}.")
 
 
 if __name__ == "__main__":

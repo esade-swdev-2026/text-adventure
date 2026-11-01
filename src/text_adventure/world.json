@@ -31,6 +31,8 @@
             {
               "name": "screwdriver",
               "description": "a worn flathead",
+              "icon": "art/icons/screwdriver.txt",
+              "closeup": "art/closeups/screwdriver.txt",
               "sprite": [
                 8,
                 14

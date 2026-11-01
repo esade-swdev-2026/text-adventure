@@ -3,6 +3,8 @@ from rich.cells import cell_len
 
 from text_adventure.art import (
     ART_HEIGHT,
+    CLOSEUP,
+    ICON,
     SCREEN_WIDTH,
     Art,
     ArtError,
@@ -10,6 +12,7 @@ from text_adventure.art import (
     Position,
     compose,
     parse_art,
+    parse_picture,
 )
 from text_adventure.game import play_turn
 from text_adventure.models import Container, Door, Inventory, Item, Player, Room
@@ -116,3 +119,57 @@ def test_box_contains_its_cells_and_not_its_neighbours() -> None:
     assert box.contains(2, 5) and box.contains(4, 8)
     assert not box.contains(1, 5) and not box.contains(5, 5)
     assert not box.contains(2, 4) and not box.contains(2, 9)
+
+
+PICTURE = """\
+[closed]
+[#]
+[closed:colors]
+.#.
+[open]
+]#[
+"""
+
+
+def test_picture_frames_are_padded_to_their_full_size() -> None:
+    frame = parse_picture(PICTURE, ICON).frame("closed")
+    assert len(frame.rows) == len(frame.colors) == ICON.height
+    assert all(cell_len(row) == ICON.width for row in frame.rows + frame.colors)
+    assert frame.rows[0] == "[#]     "
+    assert frame.colors[0] == ".#.     "
+
+
+def test_a_frame_without_a_colour_map_is_all_shadow() -> None:
+    assert parse_picture(PICTURE, ICON).frame("open").colors == (" " * ICON.width,) * ICON.height
+
+
+def test_an_unknown_state_falls_back_to_the_first_frame() -> None:
+    picture = parse_picture(PICTURE, ICON)
+    assert picture.frame("power on") == picture.frame("closed") == picture.frame()
+
+
+@pytest.mark.parametrize(
+    ("text", "message"),
+    [
+        ("[default]\n123456789\n", "must fit in 8x3"),
+        ("[default]\n1\n2\n3\n4\n", "must fit in 8x3"),
+        ("[default]\nab\n[default:colors]\nxz\n", "not a colour"),
+        ("[open:colors]\n##\n", r"no \[open\] frame"),
+        ("", r"no \[state\] frame"),
+        ("[default]\n⚡\n", "one cell"),
+    ],
+)
+def test_broken_picture_raises(text: str, message: str) -> None:
+    with pytest.raises(ArtError, match=message):
+        parse_picture(text, ICON)
+
+
+def test_example_pictures_have_the_right_size(world: World) -> None:
+    icon = world.icon_for("screwdriver")
+    closeup = world.closeup_for(world.first_room, "screwdriver")
+    assert icon is not None and icon.size == ICON
+    assert closeup is not None and closeup.size == CLOSEUP
+    for picture in (icon, closeup):
+        frame = picture.frame()
+        assert len(frame.rows) == len(frame.colors) == picture.size.height
+        assert all(cell_len(row) == picture.size.width for row in frame.rows + frame.colors)

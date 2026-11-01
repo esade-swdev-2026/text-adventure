@@ -138,6 +138,77 @@ def _full_size(section: str, rows: tuple[str, ...]) -> tuple[str, ...]:
     return _pad(list(rows) + [""] * (ART_HEIGHT - len(rows)), SCREEN_WIDTH)
 
 
+COLORS = ":colors"  # suffix of a frame's optional colour map, e.g. "[open:colors]"
+# One letter per cell in a colour map (docs/SCREEN-SPEC.md §7). A space or "." is shadow.
+COLOR_LETTERS = frozenset(" .s#*nrf")
+
+
+@dataclass(frozen=True)
+class PictureSize:
+    """The fixed size of one kind of picture, in terminal cells."""
+
+    kind: str
+    width: int
+    height: int
+
+
+ICON = PictureSize("icon", 8, 3)  # an inventory slot's picture
+CLOSEUP = PictureSize("close-up", 92, 11)  # fills the room panel while inspecting
+
+
+@dataclass(frozen=True)
+class Frame:
+    """One drawing of a picture, padded to its full size, with a colour letter per cell."""
+
+    rows: tuple[str, ...]
+    colors: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class Picture:
+    """An icon or close-up: one frame per state. The first frame is the default."""
+
+    size: PictureSize
+    frames: Mapping[str, Frame]
+
+    def frame(self, state: str | None = None) -> Frame:
+        """The frame for this state, or the first frame if the state has none of its own."""
+        if state is not None and state in self.frames:
+            return self.frames[state]
+        return next(iter(self.frames.values()))
+
+
+def parse_picture(text: str, size: PictureSize) -> Picture:
+    """Parse a picture file: "[state]" frames, each with an optional "[state:colors]" map.
+
+    Every frame and map must fit in `size` and is padded to exactly that size.
+    """
+    sections = _split_sections(text)
+    frames: dict[str, Frame] = {}
+    for name, lines in sections.items():
+        if name.endswith(COLORS):
+            if name.removesuffix(COLORS) not in sections:
+                raise ArtError(f"[{name}] has no [{name.removesuffix(COLORS)}] frame")
+            continue
+        colors = sections.get(name + COLORS, [])
+        for line in colors:
+            wrong = set(line) - COLOR_LETTERS
+            if wrong:
+                raise ArtError(f"[{name}{COLORS}] uses {min(wrong)!r}, which is not a colour")
+        _check_cells(name, lines)
+        frames[name] = Frame(_fit(name, lines, size), _fit(name + COLORS, colors, size))
+    if not frames:
+        raise ArtError(f"{size.kind} has no [state] frame")
+    return Picture(size, frames)
+
+
+def _fit(section: str, lines: list[str], size: PictureSize) -> tuple[str, ...]:
+    """Pad a frame to exactly the picture's size, or raise ArtError if it is too big."""
+    if len(lines) > size.height or any(cell_len(line) > size.width for line in lines):
+        raise ArtError(f"[{section}] must fit in {size.width}x{size.height} cells ({size.kind})")
+    return _pad(lines + [""] * (size.height - len(lines)), size.width)
+
+
 def drawn(art: Art, room: Room) -> list[DrawnObject]:
     """Each object drawn right now, in drawing order.
 
