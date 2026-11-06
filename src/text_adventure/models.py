@@ -22,7 +22,8 @@ class Use:
 
     If an object named in `needs` is not in the state given, the player reads `refusal` and
     nothing changes. Otherwise the player reads `text`, the object takes the story `state` (if
-    any), each name in `reveal` comes out of hiding, and a `consume`d item is used up.
+    any), each name in `reveal` comes out of hiding, and a `consume`d item is used up. A
+    `flash` rule lights the whole picture white for an instant (docs/SCREEN-SPEC.md §5).
     """
 
     item: str | None  # the item used; None on an item's own rule (`use flashbulb`)
@@ -32,6 +33,7 @@ class Use:
     state: str | None = None
     reveal: tuple[str, ...] = ()
     consume: bool = False
+    flash: bool = False
 
 
 def pick_text(texts: Mapping[str, str], state: str | None) -> str:

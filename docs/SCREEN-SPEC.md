@@ -271,11 +271,13 @@ container and the door. Hidden items (inside a closed container) get the usual
   spaces inside are opaque.
 - **The spotlight:** after `open`, `take`, `drop` or `use`, the object that changed is drawn in
   FOCUS for one turn (blank sprite rows excluded).
+- **Flashbulb flash (E5.2, built):** a `use` rule with `"flash": true` draws one frame with
+  the whole picture in PLAIN bold (a white flash) for 0.15 s, then the room returns with the
+  object it was used on in FOCUS. The borders, text, panels and prompt don't change, so only
+  the picture flashes.
 - **Room for E5 (not specified yet):**
   - *Power-on lighting:* a room can have a second light map (e.g. `[light:power on]`) that
     replaces `[light]` once the power is back; most of the room turns from SHADOW to LIT.
-  - *Flashbulb flash:* one frame drawn entirely in PLAIN bold (a white flash), then the room
-    returns with the newly found thing in FOCUS.
 
 ## 6. Palette
 
@@ -570,6 +572,7 @@ To add with E2 / E4 (each replaces its v0.5 counterpart):
 |---|---|
 | Every row of every screen is at most 96 cells; the screen block is exactly 29 rows | `test_screen.py` |
 | Every screen in a full playthrough has the same height, in the room and inspecting | `test_screen.py` |
+| The flash turns every picture cell to FOCUS and leaves every other row as it was | `test_screen.py` |
 | The verb panel is the same in every state and names no object | `test_screen.py` |
 | Slots show icon and name; empty slots are empty frames; long names end in `…` | `test_screen.py` |
 | History keeps the newest at the bottom, at most 3 rows | `test_screen.py` |

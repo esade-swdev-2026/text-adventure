@@ -39,6 +39,7 @@ class Outcome:
     subject: str | None = None  # the object this command changed, if any
     moved: bool = False  # the command changed the game, so it counts as a move
     inspected: Inspection | None = None  # set by `inspect`
+    flash: bool = False  # the room lights up white for an instant before it is drawn
 
 
 def win_message(moves: int, par: int | None) -> str:
@@ -195,7 +196,7 @@ def _apply_use(player: Player, rule: Use, item: Item, target: Thing, target_name
         target.story = rule.state
     for name in rule.reveal:
         player.current_room.reveal(name)
-    return Outcome(rule.text, subject=target_name, moved=True)
+    return Outcome(rule.text, subject=target_name, moved=True, flash=rule.flash)
 
 
 def _find_rule(uses: list[Use], item: str | None) -> Use | None:

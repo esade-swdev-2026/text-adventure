@@ -1,7 +1,7 @@
 import pytest
 from rich.cells import cell_len
 
-from text_adventure.art import ICON, parse_art, parse_picture
+from text_adventure.art import ART_HEIGHT, ICON, parse_art, parse_picture
 from text_adventure.game import play_turn
 from text_adventure.models import Container, Door, Inventory, Item, Player, Room
 from text_adventure.screen import (
@@ -20,6 +20,7 @@ from text_adventure.screen import (
     build_win_screen,
     complete,
     describe_room,
+    flash_screen,
     history_rows,
     line_text,
     slot,
@@ -219,6 +220,18 @@ def test_changed_object_is_spotlit_in_the_room(world: World, player: Player) -> 
     lit = [text for line in screen.rows for text, role in line if role is Role.FOCUS]
     assert lit[0].startswith("╔═════════╗╻")  # only the toolbox's columns
     assert all(len(text) == len(lit[0]) for text in lit)
+
+
+def test_the_flash_lights_the_whole_picture_and_nothing_else(world: World, player: Player) -> None:
+    screen = screen_for(world, player)
+    flashed = flash_screen(screen)
+    assert [line_text(row) for row in flashed.rows] == [line_text(row) for row in screen.rows]
+    picture = flashed.rows[1 : 1 + ART_HEIGHT]
+    assert all(role is Role.FOCUS for row in picture for _, role in row[1:-1])
+    assert all(row[0][1] is Role.BORDER and row[-1][1] is Role.BORDER for row in picture)
+    rest = [*flashed.rows[:1], *flashed.rows[1 + ART_HEIGHT :]]
+    assert rest == [*screen.rows[:1], *screen.rows[1 + ART_HEIGHT :]]
+    assert (flashed.prompt, flashed.names) == (screen.prompt, screen.names)
 
 
 def test_shading_follows_the_light_map(world: World, player: Player) -> None:
