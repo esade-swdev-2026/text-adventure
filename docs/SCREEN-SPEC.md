@@ -6,9 +6,10 @@ contract for the epics that build it: **E1** (inspect, use, moves), **E2** (layo
 (close-ups), **E4** (colour), **E5** (lighting) and **E6** (intro and ending). Where a rule can
 be checked in code, a test checks it (section 12).
 
-> **Status.** This is the target design. The code in v0.5 still draws the old 80 × 24 screen
-> (the previous spec is in git history at `e8c92fe`). The picture file format (section 7) is
-> already built: `parse_picture`, the `icon` and `closeup` fields and the `check` warnings.
+> **Status.** The main screen (section 3), the inspect view's drawing (section 4), the room
+> art (section 5), the too-small screen and redraw on resize (section 10) and the picture
+> format (section 7) are built (E0, E2). Colour (E4), the `inspect` and `use` verbs and moves
+> (E1), close-up art (E3) and the intro and ending screens (E6) are not yet.
 
 Rows and columns are counted from 1, inside the **screen block** (section 2), top-left first.
 

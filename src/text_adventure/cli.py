@@ -9,9 +9,9 @@ from typing import Annotated
 import typer
 
 from .art import Art, ArtError, Picture, parse_art, parse_picture
-from .game import play_turn
-from .models import Inventory, Player
-from .screen import Tone, build_screen, build_win_screen
+from .game import Inspection, play_turn
+from .models import Inventory, Player, Room
+from .screen import Inspected, Message, Tone, build_screen, build_win_screen
 from .solve import shortest_win
 from .terminal import Terminal
 from .world import (
@@ -78,25 +78,56 @@ def _load_or_exit(path: Path | None) -> World:
 def run(world: World, terminal: Terminal) -> None:
     """The game loop: draw, read a line, apply it, until the player wins or quits."""
     player = Player(world.first_room, Inventory())
-    message, tone = world.intro, Tone.NARRATION
+    history = [Message(world.intro, Tone.NARRATION)] if world.intro else []
     focus: str | None = None
+    inspected: Inspected | None = None
     while True:
         room = player.current_room
-        screen = build_screen(room, player.inventory, world.art_for(room), message, tone, focus)
+        art = world.art_for(room)
+        screen = build_screen(
+            room,
+            player.inventory,
+            art,
+            history,
+            moves=player.moves,
+            icons=world.icons,
+            focus=focus,
+            inspected=inspected,
+        )
         terminal.draw(screen)
-        outcome = play_turn(player, terminal.read(screen.prompt, screen.options), world.par)
+        outcome = play_turn(player, terminal.read(), world.par)
+        focus, inspected = None, None  # any input, even Enter alone, returns to the room
         if outcome is None:
             continue
-        if outcome.won:
-            terminal.draw(
-                build_win_screen(room, world.art_for(room), outcome.message, world.ending)
-            )
-            return
         if outcome.quit:
             terminal.say(outcome.message)
             return
-        message, tone = outcome.message, Tone.ERROR if outcome.error else Tone.RESULT
+        tone = Tone.WIN if outcome.won else Tone.ERROR if outcome.error else Tone.RESULT
+        if outcome.inspected is not None:
+            inspected = _inspected(world, room, outcome.inspected)
+            history.append(Message(f"You look closely at the {outcome.inspected.name}."))
+        else:
+            history.append(Message(outcome.message, tone))
+        if outcome.won:
+            terminal.draw(
+                build_win_screen(
+                    room,
+                    player.inventory,
+                    art,
+                    history,
+                    world.ending,
+                    moves=player.moves,
+                    icons=world.icons,
+                )
+            )
+            return
         focus = outcome.subject
+
+
+def _inspected(world: World, room: Room, inspection: Inspection) -> Inspected:
+    """What the inspect view shows: the rules' text and the close-up, in the thing's state."""
+    picture = world.closeup_for(room, inspection.name)
+    return Inspected(inspection.name, inspection.text, picture, inspection.state)
 
 
 WorldOption = Annotated[

@@ -1,0 +1,9 @@
+[default]
+ ▗▄▄▄▄▖
+▐█────█▌
+ ▝▀▀▀▀▘
+
+[default:colors]
+ ffffff
+ff####ff
+ ffffff
