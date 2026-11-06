@@ -11,6 +11,7 @@ from text_adventure.art import (
     Box,
     Position,
     compose,
+    floor_key,
     parse_art,
     parse_picture,
 )
@@ -78,11 +79,12 @@ def test_wide_character_is_rejected() -> None:
         parse_art("[background]\n⚡\n")
 
 
-def test_every_composed_line_is_screen_width_in_every_state(world: World, player: Player) -> None:
+def test_every_composed_line_is_screen_width_in_every_state(
+    world: World, player: Player, win_script: list[str]
+) -> None:
     room = world.first_room
     art = world.art_for(room)
-    script = ["open toolbox", "take screwdriver", "open fuse box", "take key", "take flashbulb"]
-    for line in ["", *script, "drop flashbulb", "open door"]:
+    for line in ["", "take flashbulb", "drop flashbulb", *win_script]:
         play_turn(player, line)
         assert all(cell_len(row) == SCREEN_WIDTH for row in compose(art, room)), line
     assert room.door.is_open
@@ -91,9 +93,12 @@ def test_every_composed_line_is_screen_width_in_every_state(world: World, player
 def test_each_sprite_fits_inside_the_background(world: World) -> None:
     art = world.art_for(world.first_room)
     for key, sprite in art.sprites.items():
-        place = art.placements[key.split(":")[0]]
-        assert place.row + len(sprite) <= ART_HEIGHT, key
-        assert place.column + max(cell_len(row) for row in sprite) <= SCREEN_WIDTH, key
+        name = key.split(":")[0]
+        places = [art.placements[k] for k in (name, floor_key(name)) if k in art.placements]
+        assert places, key
+        for place in places:
+            assert place.row + len(sprite) <= ART_HEIGHT, key
+            assert place.column + max(cell_len(row) for row in sprite) <= SCREEN_WIDTH, key
 
 
 def test_spaces_around_a_sprite_are_transparent_and_inside_opaque() -> None:

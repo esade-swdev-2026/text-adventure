@@ -2,20 +2,72 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+
 CAPACITY = 4
 DOOR = "door"  # reserved name: `open door` always means the room's door
+
+# State names. A container is closed or open, the door locked, unlocked or open. A `use` can
+# give an item or a container a story state instead, such as "power on".
+OPEN = "open"
+CLOSED = "closed"
+LOCKED = "locked"
+UNLOCKED = "unlocked"
+
+
+@dataclass(frozen=True)
+class Use:
+    """What happens when an item is used on an object (or, on an item's own rule, by itself).
+
+    If an object named in `needs` is not in the state given, the player reads `refusal` and
+    nothing changes. Otherwise the player reads `text`, the object takes the story `state` (if
+    any), each name in `reveal` comes out of hiding, and a `consume`d item is used up.
+    """
+
+    item: str | None  # the item used; None on an item's own rule (`use flashbulb`)
+    text: str
+    needs: Mapping[str, str] = field(default_factory=dict)
+    refusal: str = ""
+    state: str | None = None
+    reveal: tuple[str, ...] = ()
+    consume: bool = False
+
+
+def pick_text(texts: Mapping[str, str], state: str | None) -> str:
+    """The text for this state, or the first text if the state has none of its own."""
+    if state is not None and state in texts:
+        return texts[state]
+    return next(iter(texts.values()), "")
 
 
 class Item:
     """Something the player can find, and maybe carry."""
 
     def __init__(
-        self, name: str, description: str = "", portable: bool = True, floor_text: str = ""
+        self,
+        name: str,
+        description: str = "",
+        portable: bool = True,
+        floor_text: str = "",
+        *,
+        details: Mapping[str, str] | None = None,
+        uses: list[Use] | None = None,
+        refusal: str = "",
     ) -> None:
         self.name = name
         self.description = description
         self.portable = portable
         self.floor_text = floor_text  # sentence used while the item lies on the floor
+        self.details = details or {}  # what `inspect` shows, by state; the first is the default
+        self.uses = uses or []  # what happens when an item is used on this one
+        self.refusal = refusal  # said when this item is used where it does nothing
+        self.story: str | None = None  # story state set by a `use`, if any
+
+    @property
+    def state(self) -> str | None:
+        """The item's story state, or None while it has none."""
+        return self.story
 
     def describe(self) -> str:
         """Return the item's description, or just its name if it has none."""
@@ -23,25 +75,60 @@ class Item:
 
 
 class Door:
-    """The exit of a room, opened only if the player holds the required item."""
+    """The exit of a room. Its required item unlocks it and is used up; then it opens."""
 
-    def __init__(self, next_room: Room | None, required_item: str | None = None) -> None:
+    def __init__(
+        self,
+        next_room: Room | None,
+        required_item: str | None = None,
+        *,
+        needs: Mapping[str, str] | None = None,
+        refusal: str = "",
+        unlock_text: str = "",
+        room_texts: Mapping[str, str] | None = None,
+        details: Mapping[str, str] | None = None,
+        uses: list[Use] | None = None,
+    ) -> None:
         self.next_room = next_room  # Room it leads to, or None for the final exit
-        self.required_item = required_item  # name of the Item that opens it
+        self.required_item = required_item  # name of the Item that unlocks it
+        self.needs = needs or {}  # states of other objects the lock waits for, e.g. power
+        self.refusal = refusal  # said when the key is tried before `needs` are met
+        self.unlock_text = unlock_text  # said when the key turns
+        self.room_texts = room_texts or {}  # its sentence in the room description, by state
+        self.details = details or {}  # what `inspect` shows, by state
+        self.uses = uses or []
+        self.is_unlocked = required_item is None
         self.is_open = False
+
+    @property
+    def state(self) -> str:
+        """ "locked", "unlocked" or "open"."""
+        if self.is_open:
+            return OPEN
+        return UNLOCKED if self.is_unlocked else LOCKED
+
+    def room_sentence(self) -> str:
+        """Its sentence in the room description for the current state, or "" if it has none."""
+        return self.room_texts.get(self.state, "")
 
     def is_exit(self) -> bool:
         """Return True if opening this door wins the game."""
         return self.next_room is None
 
-    def open(self, inventory: Inventory) -> bool:
-        """Try to open the door; the key is used up. Return True if it opened."""
-        if self.required_item is not None:
-            if not inventory.has_item(self.required_item):
+    def unlock(self, inventory: Inventory) -> bool:
+        """Unlock the door with its required item, which is used up. Return True if unlocked."""
+        if not self.is_unlocked:
+            if self.required_item is None or not inventory.has_item(self.required_item):
                 return False
             inventory.use_item(self.required_item)
-        self.is_open = True
+            self.is_unlocked = True
         return True
+
+    def open(self) -> bool:
+        """Open the door if it is unlocked. Return True if it opened."""
+        if self.is_unlocked:
+            self.is_open = True
+        return self.is_open
 
 
 class Container:
@@ -54,13 +141,38 @@ class Container:
         required_item: str | None = None,
         closed_text: str = "",
         open_text: str = "",
+        *,
+        hidden: list[Item] | None = None,
+        needs: Mapping[str, str] | None = None,
+        refusal: str = "",
+        room_texts: Mapping[str, str] | None = None,
+        details: Mapping[str, str] | None = None,
+        uses: list[Use] | None = None,
     ) -> None:
         self.name = name
         self.contents = contents or []  # list of Item inside
+        self.hidden = hidden or []  # items inside that no one sees until a `use` reveals them
         self.required_item = required_item  # name of the Item that unlocks it, or None
+        self.needs = needs or {}  # states of other objects the lock waits for
+        self.refusal = refusal  # said when the tool is tried before `needs` are met
         self.closed_text = closed_text  # sentence used while it is closed
         self.open_text = open_text  # sentence used once it is open
+        self.room_texts = room_texts or {}  # sentence for a state, used instead of the two above
+        self.details = details or {}  # what `inspect` shows, by state
+        self.uses = uses or []  # what happens when an item is used on it
         self.is_open = False
+        self.story: str | None = None  # story state set by a `use`, if any
+
+    @property
+    def state(self) -> str:
+        """Its story state if it has one, else "open" or "closed"."""
+        return self.story or (OPEN if self.is_open else CLOSED)
+
+    def room_sentence(self) -> str:
+        """Its sentence in the room description for the current state, or "" if it has none."""
+        if self.state in self.room_texts:
+            return self.room_texts[self.state]
+        return self.open_text if self.is_open else self.closed_text
 
     def is_locked(self) -> bool:
         """Return True if the player still needs an item before this can be opened."""
@@ -78,6 +190,9 @@ class Container:
         return True
 
 
+type Thing = Item | Container | Door  # anything `inspect` and `use` can name
+
+
 class Room:
     """A room: containers, loose items and a single door."""
 
@@ -88,12 +203,14 @@ class Room:
         door: Door,
         containers: list[Container] | None = None,
         items: list[Item] | None = None,
+        hidden: list[Item] | None = None,
     ) -> None:
         self.name = name
         self.description = description
         self.door = door
         self.containers = containers or []  # list of Container
         self.items = items or []  # loose items lying in the room
+        self.hidden = hidden or []  # loose items no one sees until a `use` reveals them
 
     def find_container(self, name: str) -> Container | None:
         """Return the container with this name, or None."""
@@ -111,6 +228,15 @@ class Room:
                         return item
         return None
 
+    def reveal(self, name: str) -> None:
+        """Bring a hidden item out of hiding: onto the floor, or into its container."""
+        for found, hidden in [(self.items, self.hidden)] + [
+            (c.contents, c.hidden) for c in self.containers
+        ]:
+            for item in [item for item in hidden if item.name == name]:
+                hidden.remove(item)
+                found.append(item)
+
     def remove_item(self, item: Item) -> Item:
         """Take an item off the floor or out of an open container and return it."""
         if item in self.items:
@@ -124,11 +250,12 @@ class Room:
 
 
 class Player:
-    """The player: which room they are in and what they carry."""
+    """The player: which room they are in, what they carry, and how many moves they've made."""
 
     def __init__(self, current_room: Room, inventory: Inventory) -> None:
         self.current_room = current_room
         self.inventory = inventory  # an Inventory (max CAPACITY items)
+        self.moves = 0  # commands that changed the game (game.py decides which)
 
     def take_item(self, item: Item) -> None:
         """Move an item from the current room into the inventory."""

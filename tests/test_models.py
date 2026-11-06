@@ -1,6 +1,15 @@
 import pytest
 
-from text_adventure.models import CAPACITY, Container, Door, Inventory, Item, Player, Room
+from text_adventure.models import (
+    CAPACITY,
+    Container,
+    Door,
+    Inventory,
+    Item,
+    Player,
+    Room,
+    pick_text,
+)
 
 
 def make_room(
@@ -19,14 +28,25 @@ def test_door_without_next_room_is_exit() -> None:
     assert Door(make_room()).is_exit() is False
 
 
-def test_locked_door_stays_shut_without_key() -> None:
-    assert Door(None, "key").open(Inventory()) is False
+def test_locked_door_stays_locked_and_shut_without_key() -> None:
+    door = Door(None, "key")
+    assert door.unlock(Inventory()) is False
+    assert door.open() is False
+    assert door.state == "locked"
 
 
-def test_locked_door_opens_and_uses_up_key() -> None:
+def test_key_unlocks_the_door_and_is_used_up_then_it_opens() -> None:
     inventory = Inventory([Item("key")])
-    assert Door(None, "key").open(inventory) is True
+    door = Door(None, "key")
+    assert door.unlock(inventory) is True
     assert not inventory.has_item("key")
+    assert door.state == "unlocked"
+    assert door.open() is True
+    assert door.state == "open"
+
+
+def test_door_without_a_key_starts_unlocked() -> None:
+    assert Door(None).open() is True
 
 
 # Container
@@ -46,7 +66,34 @@ def test_locked_container_opens_and_keeps_item() -> None:
     assert inventory.has_item("key")
 
 
+def test_container_state_is_its_story_once_it_has_one() -> None:
+    container = Container("box")
+    assert container.state == "closed"
+    container.open(Inventory())
+    assert container.state == "open"
+    container.story = "power on"
+    assert container.state == "power on"
+
+
+def test_pick_text_falls_back_to_the_first_text() -> None:
+    texts = {"closed": "Shut.", "open": "Gaping."}
+    assert pick_text(texts, "open") == "Gaping."
+    assert pick_text(texts, "power on") == "Shut."
+    assert pick_text({}, None) == ""
+
+
 # Room
+
+
+def test_reveal_moves_a_hidden_item_into_sight() -> None:
+    gem, coin = Item("gem"), Item("coin")
+    container = Container("box", hidden=[gem])
+    room = make_room(containers=[container])
+    room.hidden.append(coin)
+    room.reveal("gem")
+    room.reveal("coin")
+    assert (container.contents, container.hidden) == ([gem], [])
+    assert (room.items, room.hidden) == ([coin], [])
 
 
 def test_room_remove_item_from_open_container() -> None:
