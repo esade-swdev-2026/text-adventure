@@ -6,7 +6,7 @@ of rows, so the screen never changes shape between turns.
 
 import textwrap
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum, auto
 
 from rich.cells import cell_len
@@ -490,6 +490,16 @@ def build_screen(
         focus if carried else None,
     )
     return Screen(rows, f"{INDENT}[{room.name}] > ", visible_names(room, inventory))
+
+
+def flash_screen(screen: Screen) -> Screen:
+    """The same screen with the whole picture in FOCUS: plain bold, a white flash
+    (docs/SCREEN-SPEC.md §5). The frame, text and panels stay as they are."""
+    rows = list(screen.rows)
+    for index in range(1, 1 + ART_HEIGHT):  # the picture rows, between the panel's borders
+        left, *picture, right = rows[index]
+        rows[index] = [left, ("".join(text for text, _ in picture), Role.FOCUS), right]
+    return replace(screen, rows=rows)
 
 
 def build_win_screen(

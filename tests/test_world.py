@@ -88,6 +88,23 @@ def test_uses_needs_and_hidden_items_build() -> None:
     assert world.par == 4
 
 
+def test_a_use_can_flash() -> None:
+    data = broken(with_a_puzzle)
+    world = build_world(data, ART)
+    desk_ = world.first_room.find_container("desk")
+    assert desk_ is not None and not desk_.uses[0].flash  # off unless the rule says so
+    data["rooms"][0]["containers"][0]["uses"][0]["flash"] = True
+    desk_ = build_world(data, ART).first_room.find_container("desk")
+    assert desk_ is not None and desk_.uses[0].flash
+
+
+def test_flash_must_be_true_or_false() -> None:
+    data = broken(with_a_puzzle)
+    data["rooms"][0]["containers"][0]["uses"][0]["flash"] = "yes"
+    with pytest.raises(WorldError, match='"flash"'):
+        build_world(data, ART)
+
+
 @pytest.mark.parametrize("par", [0, -1, "8", True, 2.5])
 def test_par_must_be_a_positive_whole_number(par: Any) -> None:
     with pytest.raises(WorldError, match='"par"'):

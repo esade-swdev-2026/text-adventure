@@ -1,6 +1,7 @@
 """Draw a Screen with rich and read a line. The only module that prints during play."""
 
 import signal
+import time
 from types import FrameType
 
 try:  # gives input() arrow keys, history and Tab; not on Windows, where the console edits lines
@@ -19,6 +20,7 @@ from .screen import (
     Role,
     Screen,
     complete,
+    flash_screen,
     to_ascii,
     too_small_lines,
 )
@@ -45,6 +47,8 @@ ROLE_STYLES: dict[Role, str] = {
     Role.NARRATION: "italic",
     Role.PROMPT: "bold",
 }
+
+FLASH_SECONDS = 0.15  # long enough to see, short enough to feel like a camera flash
 
 
 class _Resized(Exception):
@@ -95,6 +99,12 @@ class Terminal:
         """Clear the terminal and draw the whole screen, centred both ways."""
         self.screen = screen
         self._redraw()
+
+    def flash(self, screen: Screen) -> None:
+        """Draw the screen with its picture lit white for an instant. The caller then draws
+        the screen itself, so the room comes back after the flash."""
+        self.draw(flash_screen(screen))
+        time.sleep(FLASH_SECONDS)
 
     def _redraw(self) -> None:
         self.console.clear()
