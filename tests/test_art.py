@@ -28,8 +28,10 @@ AB
 ab
 [gem]
 *
-[door:closed]
+[door:locked]
 D
+[door:unlocked]
+U
 [door:open]
 d
 """
@@ -178,3 +180,55 @@ def test_example_pictures_have_the_right_size(world: World) -> None:
         frame = picture.frame()
         assert len(frame.rows) == len(frame.colors) == picture.size.height
         assert all(cell_len(row) == picture.size.width for row in frame.rows + frame.colors)
+
+
+def test_door_is_drawn_locked_unlocked_or_open() -> None:
+    art, room = make({"door": (0, 0)})
+    room.door = Door(None, "key")
+    assert compose(art, room)[0][0] == "D"
+    room.door.is_unlocked = True
+    assert compose(art, room)[0][0] == "U"
+    room.door.open()
+    assert compose(art, room)[0][0] == "d"
+
+
+def test_story_state_uses_its_own_sprite_or_falls_back_to_open() -> None:
+    art = Art(
+        (".....",),
+        {"box:closed": ("c",), "box:open": ("o",), "box:lit": ("L",)},
+        {"box": Position(0, 0)},
+    )
+    room = Room("Lab", "", Door(None), [Container("box")])
+    box = room.containers[0]
+    box.open(Inventory())
+    box.story = "lit"
+    assert compose(art, room)[0][0] == "L"
+    box.story = "humming"  # no sprite of its own
+    assert compose(art, room)[0][0] == "o"
+
+
+def test_room_shows_every_object_and_each_state_changes_visibly(
+    world: World, player: Player, win_script: list[str]
+) -> None:
+    room = player.current_room
+    art = world.art_for(room)
+    assert len(art.background) == ART_HEIGHT == 11
+    assert all(cell_len(row) == SCREEN_WIDTH == 92 for row in art.background)
+    start = "\n".join(compose(art, room))
+    for sprite in ["toolbox:closed", "fuse box:closed", "vent:closed", "flashbulb", "door:locked"]:
+        assert art.sprites[sprite][0].strip() in start, sprite
+    assert "┿━" in start  # the bolt is shot across the frame
+    unlocked = art.sprites["door:unlocked"]
+    assert unlocked != art.sprites["door:locked"]
+    assert not any("┿" in row for row in unlocked)
+    seen = {"\n".join(compose(art, room))}
+    for line in win_script:
+        play_turn(player, line)
+        picture = "\n".join(compose(art, room))
+        assert picture not in seen or line.startswith("take"), line  # every step shows
+        seen.add(picture)
+        if line == "use flashbulb on vent":
+            place = art.placements["fuse"]
+            assert compose(art, room)[place.row][place.column] == "▯"  # the fuse is revealed
+    for state in ["vent:open", "vent:flashed", "fuse box:power on"]:
+        assert state in art.sprites, state

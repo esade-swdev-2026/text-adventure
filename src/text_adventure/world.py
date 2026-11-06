@@ -352,7 +352,8 @@ def _build_door(door_json: Any, where: str, drawing: _RoomDrawing) -> Door:
     required = _optional_str(door_json, "required_item", where)
     if required is None:
         raise WorldError(f"{where} needs a required_item")
-    drawing.place(DOOR, _placement(door_json, where), _both_states(DOOR))
+    door_sprites = [sprite_key(DOOR, state) for state in (LOCKED, UNLOCKED, OPEN)]
+    drawing.place(DOOR, _placement(door_json, where), door_sprites)
     needs, refusal = _needs(door_json, where)
     return Door(  # linked to the next room once every room is built
         None,

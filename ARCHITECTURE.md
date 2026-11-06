@@ -190,9 +190,9 @@ Every module is either **pure** (works on plain data, never prints, never reads 
 | `game.py` | pure | `apply_command(player, command, par) -> Outcome` (the rules, and the move count) and `play_turn(player, text, par)`, which parses first. `Outcome` holds `message`, `error`, `won`, `quit`, `subject`, `moved` and `inspected` (an `Inspection`). `win_message(moves, par)`. |
 | `world.py` | pure | `build_world(data, art, pictures) -> World` checks the parsed JSON and raises `WorldError`. `World` holds `first_room`, `intro`, `ending`, `par`, each room's `Art` and each object's icon and close-up. `missing_pictures(world)` lists the art still to draw. |
 | `solve.py` | pure | `shortest_win(world)`: a breadth-first search over game states that returns the fewest commands that win, or `None`. `reachable(world)` returns every state the player can reach. Used by `check` and the tests. |
-| `art.py` | pure | `parse_art(text) -> Art` and `compose(art, room) -> list[str]`, which draws each object's sprite for its current state. `parse_picture(text, size) -> Picture` reads an icon or close-up. Widths are in terminal cells. |
-| `screen.py` | pure | `describe_room`, `available_commands`, `build_screen` / `build_win_screen` and `layout(screen)`, which returns every row as text tagged with a role (border, art, error…). |
-| `terminal.py` | I/O | `Terminal`: draws a screen with rich (one named palette, centred, cleared between turns), reads a line, prints "Goodbye.". |
+| `art.py` | pure | `parse_art(text) -> Art` and `compose(art, room) -> list[str]`, which draws each object's sprite for its current state (`door_state`: locked, unlocked or open). `parse_picture(text, size) -> Picture` reads an icon or close-up. Widths are in terminal cells. |
+| `screen.py` | pure | `describe_room`, `thing_description`, `visible_names` and `complete` (Tab), and `build_screen` / `build_win_screen`, which return every row of the 96 × 29 block as text tagged with a role (border, shadow, lit, result, history…). |
+| `terminal.py` | I/O | `Terminal`: draws a screen with rich (one style per role, centred both ways, cleared between turns), shows the too-small screen, redraws on resize keeping typed text, reads a line, prints "Goodbye.". |
 | `cli.py` | I/O | Typer commands `play [--world PATH]` and `check PATH` (which also proves the world can be won within its par). Reads `world.json`, the art files and the picture files, runs the loop, turns every load error into `Error: …` and exit code 1, and handles Ctrl-C / Ctrl-D. |
 | `world.json`, `art/*.txt` | data | The story and the drawings. |
 
@@ -242,7 +242,7 @@ Dependencies only point downward. Lower layers know nothing about the layers abo
 | `Position`, `Box`, `DrawnObject` | `art.py` | A cell (row, column); the rectangle a sprite covers, used for the spotlight; one object drawn right now (name, sprite section, position). |
 | `Picture`, `Frame`, `PictureSize` | `art.py` | An icon or close-up: one `Frame` (rows plus a colour letter per cell) per state, at a fixed `PictureSize` (`ICON` 8 × 3, `CLOSEUP` 92 × 11). |
 | `World`     | `world.py`    | The first room, intro, ending, each room's art, and the icons and close-ups (`icon_for`, `closeup_for`). |
-| `Screen`    | `screen.py`   | Everything on screen for one turn, as plain strings.                     |
+| `Message`, `Inspected`, `Screen` | `screen.py` | One history entry (text and tone); the thing in the inspect view (name, text, close-up, state); every row of one screen tagged with roles, the prompt and the names Tab offers. |
 
 ### Name lookups in `models.py`
 
@@ -261,14 +261,16 @@ win or quit.**
 
 ```
 run(world, terminal)
-  message = world.intro                      # first screen shows the intro
+  history = [world.intro]                    # the story so far, until E6's intro screen
   loop:
-      terminal.draw(build_screen(room, inventory, art, message))
-      outcome = play_turn(player, terminal.read(prompt))
-      empty line   → draw again
-      outcome.won  → draw the win screen (ending text), stop
-      outcome.quit → print "Goodbye.", stop
-      otherwise    → message = outcome.message, loop
+      terminal.draw(build_screen(room, inventory, art, history,
+                                 moves=player.moves, focus=…, inspected=…))
+      outcome = play_turn(player, terminal.read(), world.par)
+      empty line        → back to the room, draw again
+      outcome.quit      → print "Goodbye.", stop
+      outcome.inspected → history += "You look closely at the X.", draw the close-up
+      otherwise         → history += outcome.message
+      outcome.won       → draw the win screen (ending text, "Escaped in N moves."), stop
 ```
 
 The room name is in the panel title and in the prompt, so the player always knows where they
@@ -302,30 +304,21 @@ are. Ctrl-C and Ctrl-D end the game the same way as `quit`.
 ## 7. The screen
 
 The full spec, with a mock of every state, is [docs/SCREEN-SPEC.md](docs/SCREEN-SPEC.md). In
-short, the screen is redrawn after every command and has three parts under the room's art:
+short, the screen is a 96 × 29 block (100 × 30 minimum terminal), redrawn after every command:
 
-1. **Art.** Sprites placed on a background, one sprite per object state: the toolbox closed or
-   open, the door closed or open, a floor item drawn only while it lies on the floor. Opening or
-   taking something changes the picture.
-2. **Description.** The room's mood text plus one sentence per object for its current state
-   ("A battered toolbox sits by the wall." becomes "The toolbox lies open. Inside: wrench.").
-   Dropped items show up in it.
-3. **Try.** The exact commands that make sense right now: `open` for each closed
-   container, `take` for each visible item, `drop` for each carried item, `open door`, then
-   `look`, `inventory`, `help`, `quit`. Locked containers are listed too (decision 5).
+1. **Room panel.** A 92 × 11 picture: sprites placed on a background, one sprite per object
+   state (toolbox closed or open, the fuse box closed, open or powered, the vent closed, open
+   or flashed, the door locked, unlocked or open, a floor item only while it lies there). The room name is in the top border, the move counter in its
+   corner. While inspecting, the thing's close-up replaces the picture.
+2. **Description.** The room's mood text plus one sentence per object for its current state.
+3. **Verb panel and inventory.** The verbs only (never objects), and four slots with each
+   carried item's icon and name. The game no longer lists commands to try.
+4. **History.** The last results (`»` result, `✗` error, `✓` win), newest at the bottom.
 
-`Carrying (n/4): …` sits in the art panel's bottom border. Below the text come the last
-result (`»` normal, `✗` error, `✓` win) and the prompt. The style is noir: black and white,
-with the art's `[light]` map deciding what is lit (normal weight) and what is in shadow (dim), and the object the last
-command changed is drawn bold for one turn. The whole screen is 76 × 23 cells and fits an
-80 × 24 terminal. Smaller windows get
-a one-line request to resize.
-
-**Next layout.** [docs/SCREEN-SPEC.md](docs/SCREEN-SPEC.md) now specifies the next design
-(epics E1-E6): a 100 × 30 minimum, the room on top, a verb panel and four inventory icon
-slots below it, a short message history, an inspect view with close-ups, an intro and an
-ending screen, and a 256-colour noir palette. The `Try` row goes away. The paragraphs above
-describe the v0.5 code until E2 lands.
+The style is noir, black and white for now (colour is E4): the art's `[light]` map decides
+what is lit (normal) and what is in shadow (dim), and the object the last command changed is
+drawn bold for one turn. Smaller windows get a centred request to resize, and the screen
+redraws as soon as the window changes size.
 
 `look` stays as a command: it redraws the screen.
 
@@ -596,15 +589,16 @@ test pure functions. `conftest.py` loads a fresh copy of the packaged world for 
   story states, unknown names, empty input and quit.
 - **Solver** (`test_solve.py`): the packaged world is won in exactly its par, the search leaves
   the world untouched, an unwinnable world gives `None`, and a two-room route is found.
-- **Screen** (`test_screen.py`): description and commands follow the state, the opening screen
-  fits 80 × 24, every screen in a playthrough has the same height, the win screen, the prompt,
-  the spotlight on the changed object, the inventory in the border and the ASCII fallback.
+- **Screen** (`test_screen.py`): every screen in a playthrough is exactly 96 × 29, in the room
+  and inspecting; the border with title and move counter; the verb panel never changes and
+  names no object; slots, icons and empty frames; the history; Tab never offers hidden items;
+  the inspect view; the spotlight; the win screen and the ASCII fallback.
 - **CLI** (`test_cli.py`): a scripted win exits 0, end of input says goodbye, a missing world
   file, invalid JSON and a bad picture file exit 1 with `Error:`, `check` prints a summary,
   the shortest win and a warning for each missing icon or close-up, and an unwinnable world,
   a par below the shortest win or a broken `use` exit 1.
 
-The real terminal (layout at 80 × 24 and 120 × 40, colours, Ctrl-C/Ctrl-D, a too-small window)
+The real terminal (layout at 100 × 30 and 140 × 40, Ctrl-C/Ctrl-D, a too-small window, resize)
 is checked by playing the real game in a terminal before each merge. Anything that can be
 checked in code, such as line widths or a missing command hint, becomes a pytest test.
 

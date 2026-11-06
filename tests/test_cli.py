@@ -48,7 +48,8 @@ def test_check_prints_a_summary() -> None:
 def test_check_warns_about_missing_pictures_but_exits_0() -> None:
     result = runner.invoke(app, ["check", "src/text_adventure/world.json"])
     assert result.exit_code == 0
-    assert 'Warning: item "wrench" has no icon.' in result.output
+    assert "has no icon" not in result.output  # every item has its icon
+    assert 'Warning: item "wrench" has no close-up.' in result.output
     assert 'Warning: container "toolbox" has no close-up.' in result.output
     assert "screwdriver" not in result.output  # the example icon and close-up exist
 

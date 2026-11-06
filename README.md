@@ -12,27 +12,33 @@ the code is organised, how a turn flows through it, and every design decision ar
 [docs/SCREEN-SPEC.md](docs/SCREEN-SPEC.md).
 
 ```
-╭──────────────────────────── ELECTRICAL ROOM ─────────────────────────────╮
-│    ╲                  │                                             ╱    │
-│     ╲┌────────────────┴───────────────────────────────────────────┐╱     │
-│      │━━━━┓         ▗▟█▙▖           ┌──────────┐      ┌─────────┐ │      │
-│      │    ┃         ░░▒░░           │ ▫  ϟ   ▫ │      │░░░   ░░░│ │      │
-│      │    ┣━╸     ░░▒▒▒▒▒░░         │  ━━━━━━  │      │░░     ░░│ │      │
-│      │    ┃     ░░ ░  ░  ░ ░░       └──────────┘      │░       ░│ │      │
-│      └────┸───────────────────────────────────────────┴─────────┴─┘      │
-│     ╱       ╔═════════╗░  ░  ░ ░░         ·      ·      ░░░ ░░░    ╲     │
-│    ╱      ░░║ ▪ ═══ ▪ ║  ░  ░  ░ ░░                    ░░░░  ░░░░   ╲    │
-│   ╱     ░░  ╚═════════╝ ░  ░  ●▬ ░ ░░                 ░░░░░   ░░░░░  ╲   │
-╰─ Carrying (0/4): nothing ────────────────────────────────────────────────╯
-  A lone lamp swings overhead. Beyond its light, the walls hum. A toolbox
-  waits on the floor. A fuse box is screwed shut. A flashbulb lies in the
-  light. The door is shut tight.
+╭────────────────────────────────────── ELECTRICAL ROOM ───────────────────────────── 0 moves ─╮
+│     ╲                       │                                                          ╱     │
+│      ╲┌─────────────────────┴────────────────────────────────────────────────────────┐╱      │
+│       │━━━━┓              ▗▟█▙▖               ┌──────────┐              ┌─────────┐  │       │
+│       │    ┃              ░░▒░░               │ ▫  ϟ   ▫ │              │░░░ · ░░░│  │       │
+│       │    ┣━╸          ░░▒▒▒▒▒░░             │  ━━━━━━  │              │░░     ░░│  │       │
+│       │    ┃          ░░ ░  ░  ░ ░░           └──────────┘  ▪═══════▪   │░    ▪━━━┿━ │       │
+│       │    ┃        ░░ ░  ░  ░  ░  ░░                       ║╪╪╪╪╪╪╪║   │░       ░│  │       │
+│       └────┸────────────────────────────────────────────────▪═══════▪───┴─────────┴──┘       │
+│      ╱        ╔═════════╗░  ░  ░  ░  ░░             ·                     ░░░ ░░░     ╲      │
+│     ╱         ║ ▪ ═══ ▪ ║░  ░  ░  ░  ░ ░░                   ·            ░░░░  ░░░░    ╲     │
+│    ╱          ╚═════════╝ ░  ░  ░ ●▬  ░  ░░    ·                        ░░░░░   ░░░░░   ╲    │
+╰──────────────────────────────────────────────────────────────────────────────────────────────╯
+  A lone lamp swings overhead. Beyond its light, the walls hum. A toolbox waits on the floor.
+  A fuse box is screwed shut. A vent sits low in the dark. A flashbulb lies in the light. The
+  steel door is locked.
 
-  The power died an hour ago. Somebody wanted you in the dark. Find a way
-  out.
+╭──────────────────────────────╮  ╭────────────╮  ╭────────────╮  ╭────────────╮  ╭────────────╮
+│ Look    l     Inspect x      │  │            │  │            │  │            │  │            │
+│ Open          Take    get    │  │            │  │            │  │            │  │            │
+│ Drop          Use            │  │            │  │            │  │            │  │            │
+│ Help    ?     Quit    q      │  │            │  │            │  │            │  │            │
+╰──────────────────────────────╯  ╰────────────╯  ╰────────────╯  ╰────────────╯  ╰────────────╯
 
-  Try  open toolbox · open fuse box · take flashbulb · open door · look
-       inventory · help · quit
+
+  The power died an hour ago. Somebody wanted you in the dark. Find a way out.
+  Type a verb and a thing, like  look  or  inspect door. Tab completes.
 
   [Electrical Room] > _
 ```
@@ -58,7 +64,7 @@ and CI resolve the same ones. When you change a dependency in `pyproject.toml`, 
 uv run text-adventure play
 ```
 
-Use a terminal of at least 80 × 24. Other commands:
+Use a terminal of at least 100 × 30. Other commands:
 
 ```
 uv run text-adventure --help
@@ -74,8 +80,8 @@ shortest win, fails with exit code 1:
 ```
 OK: src/text_adventure/world.json has 1 room(s), 3 containers and 5 items. The game starts in the Electrical Room.
 The shortest win takes 12 moves. Par is 12.
-Warning: item "flashbulb" has no icon.
 Warning: item "flashbulb" has no close-up.
+Warning: item "wrench" has no close-up.
 ...
 ```
 
@@ -89,8 +95,9 @@ exit code 1
 
 ## How to play
 
-Type a command and press Enter. The `Try` row always lists the commands that make sense right
-now, and what you carry is shown under the picture.
+Type a verb and a thing and press Enter. The game doesn't list what to try: the picture,
+the description, the verb panel and the four inventory slots are your clues. The last
+three results stay on screen, newest at the bottom.
 
 | Command | Short | What it does |
 |---|---|---|
@@ -109,12 +116,14 @@ Every `open`, `take`, `drop` and `use` that changes something is a move; looking
 and mistakes are free. Escape in par or better and the game calls it sharp.
 
 Names can be several words (`open fuse box`), and a leading "the" is ignored
-(`take the key`). Tab completes a command (`open f` → `open fuse box`), and ↑ recalls
-earlier ones.
+(`take the key`). Tab completes a verb, then the name of something you can see or carry
+(`open f` → `open fuse box`), and ↑ recalls earlier ones.
 
-**Terminal support:** needs a UTF-8 terminal of at least 80 × 24. The game is black and white by
+**Terminal support:** needs a UTF-8 terminal of at least 100 × 30. The game is black and white by
 design (bold and dim only), so it looks the same in light and dark themes. A terminal that can't show UTF-8 gets plain ASCII art. If you
-resize the window, the screen is redrawn after your next command.
+resize the window, the screen is redrawn at once; below 100 × 30 it asks for a bigger
+window. What you had typed is kept with GNU readline (most Linux builds) and lost with
+libedit (the macOS default).
 
 ## The role of AI in this project
 

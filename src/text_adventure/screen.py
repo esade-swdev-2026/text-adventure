@@ -1,36 +1,57 @@
-"""Build the screen as plain text tagged with roles. terminal.py only adds colour and prints.
+"""Build the screen as rows of text tagged with roles. terminal.py only adds style and prints.
 
-The layout follows docs/SCREEN-SPEC.md: every area has a fixed height, so the screen never
-changes shape between turns.
+The layout follows docs/SCREEN-SPEC.md: a 96 × 29 block where every region has a fixed number
+of rows, so the screen never changes shape between turns.
 """
 
 import textwrap
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import Enum, auto
 
-from .art import LIT, SCREEN_WIDTH, Art, Box, compose, sprite_box
-from .models import DOOR, Inventory, Room
+from rich.cells import cell_len
 
-MIN_COLUMNS = 80
-MIN_ROWS = 24
-BLOCK_WIDTH = SCREEN_WIDTH + 4  # art + one cell of padding and one of border on each side
+from .art import (
+    ART_HEIGHT,
+    ICON,
+    LIT,
+    SCREEN_WIDTH,
+    Art,
+    Box,
+    Frame,
+    Picture,
+    compose,
+    sprite_box,
+)
+from .models import DOOR, Container, Inventory, Room
+
+MIN_COLUMNS = 100
+MIN_ROWS = 30
+BLOCK_WIDTH = SCREEN_WIDTH + 4  # picture + one cell of padding and one of border on each side
+BLOCK_HEIGHT = MIN_ROWS - 1  # the last terminal row stays spare, so Enter never scrolls
+PANEL_INNER_WIDTH = BLOCK_WIDTH - 2  # cells between the room panel's two side borders
 INDENT = "  "
 TEXT_WIDTH = SCREEN_WIDTH
 DESCRIPTION_LINES = 3
-MESSAGE_LINES = 2
-COMMAND_LINES = 2
-COMMAND_GAP = " · "
-COMMANDS_PREFIX = "Try  "
+HISTORY_LINES = 3
+NEWEST_LINES = 2  # the newest history entry may wrap onto a second row
+TITLE_MAX = 60
 ELLIPSIS = "…"
+
+# Where each region starts, counted from 0 (docs/SCREEN-SPEC.md §3 counts from 1).
+DESCRIPTION_ROW = ART_HEIGHT + 2
+PANELS_ROW = DESCRIPTION_ROW + DESCRIPTION_LINES + 1
+HISTORY_ROW = PANELS_ROW + 7
 
 DOOR_CLOSED_TEXT = "The door is shut tight."
 DOOR_OPEN_TEXT = "The door stands open."
+FIRST_HINT = "Type a verb and a thing, like  look  or  inspect door. Tab completes."
+INSPECT_HINT = "Enter returns to the room"
 WIN_FOOTER = "Thanks for playing."
-META_COMMANDS = ["look", "inventory", "help", "quit"]
 
 
 class Tone(Enum):
-    """How the last message reads: story text, a result, a mistake, or the win."""
+    """How a history entry reads: story text, a result, a mistake, or the win."""
 
     NARRATION = auto()
     RESULT = auto()
@@ -42,20 +63,26 @@ MARKERS = {Tone.NARRATION: "", Tone.RESULT: "» ", Tone.ERROR: "✗ ", Tone.WIN:
 
 
 class Role(Enum):
-    """What a piece of text is, so terminal.py can pick its style."""
+    """What a piece of text is, so terminal.py can pick its style (docs/SCREEN-SPEC.md §6)."""
 
-    BORDER = auto()
     TITLE = auto()
-    ART = auto()  # art in shadow
-    LIT = auto()  # art where the light falls
-    FOCUS = auto()  # the object the last command changed
+    BORDER = auto()
+    SHADOW = auto()  # art outside the light
+    LIT = auto()  # art in the lamp's light
+    LIGHT = auto()  # light sources in the light
+    NIGHT = auto()
+    DANGER = auto()
+    PLAIN = auto()  # art in the terminal's own colour, e.g. clue text
+    FOCUS = auto()  # the object or slot the last command changed
     TEXT = auto()
+    VERB = auto()
     LABEL = auto()
-    COMMAND = auto()
-    NARRATION = auto()
     RESULT = auto()
     ERROR = auto()
     WIN = auto()
+    HISTORY = auto()
+    NARRATION = auto()
+    PROMPT = auto()
 
 
 TONE_ROLES = {
@@ -65,26 +92,81 @@ TONE_ROLES = {
     Tone.WIN: Role.WIN,
 }
 
+# A picture's colour letters (docs/SCREEN-SPEC.md §7.2).
+COLOR_ROLES = {
+    " ": Role.SHADOW,
+    ".": Role.SHADOW,
+    "s": Role.SHADOW,
+    LIT: Role.LIT,
+    "*": Role.LIGHT,
+    "n": Role.NIGHT,
+    "r": Role.DANGER,
+    "f": Role.PLAIN,
+}
+
+# Characters drawn as light sources (bold) where the room's light falls.
+LIGHT_SOURCES = frozenset("▗▟█▙▖●*ϟ")
+
+# The verb panel: (verb, short form). Help and Quit are about the game, so they sit back.
+VERBS = [
+    ("Look", "l"),
+    ("Inspect", "x"),
+    ("Open", ""),
+    ("Take", "get"),
+    ("Drop", ""),
+    ("Use", ""),
+    ("Help", "?"),
+    ("Quit", "q"),
+]
+GAME_VERBS = frozenset({"Help", "Quit"})
+VERB_WIDTH = 8
+CELL_WIDTH = 14
+VERB_PANEL_WIDTH = 32
+PANEL_GAP = "  "
+SLOTS = 4
+SLOT_WIDTH = 14
+SLOT_INNER = SLOT_WIDTH - 2
+ICON_PAD = "  "
+
+# Tab completion: verbs first, then a name for the verbs that take one.
+TAB_VERBS = ["look", "inspect", "open", "take", "drop", "use", "inventory", "help", "quit"]
+NAMED_VERBS = frozenset({"inspect", "x", "open", "take", "get", "drop", "use"})
+USE = "use"
+ON = "on"
+
 type Segment = tuple[str, Role]
 type Line = list[Segment]
 
 
 @dataclass(frozen=True)
-class Screen:
-    """Everything one screen shows, as plain text. layout() turns it into styled rows."""
+class Message:
+    """One entry in the message history: what a command said, and how it reads."""
 
-    title: str
-    art: list[str]
-    description: list[str]  # exactly DESCRIPTION_LINES rows
-    message: list[str]  # exactly MESSAGE_LINES rows, marker included
-    tone: Tone
-    commands: list[list[str]]  # exactly COMMAND_LINES rows of commands; empty when won
-    carrying: str  # shown in the panel's bottom border
+    text: str
+    tone: Tone = Tone.RESULT
+
+
+@dataclass(frozen=True)
+class Inspected:
+    """The thing shown in the inspect view: its name, description and close-up (if drawn).
+
+    `state` picks the close-up frame; None means its first frame.
+    """
+
+    name: str
+    description: str
+    picture: Picture | None = None
+    state: str | None = None
+
+
+@dataclass(frozen=True)
+class Screen:
+    """One whole screen: every row above the prompt, the prompt, and the names Tab offers."""
+
+    rows: list[Line]  # exactly BLOCK_HEIGHT - 1 rows
     prompt: str  # empty when the game is over
-    options: list[str] = field(default_factory=list)  # every available command, for Tab
-    footer: str = ""
-    focus: Box | None = None  # the art to spotlight
-    light: tuple[str, ...] = ()  # the art's light map, "#" where lit
+    names: list[str] = field(default_factory=list)
+    footer: str = ""  # shown in place of the prompt when the game is over
 
 
 def _cut(text: str, width: int) -> str:
@@ -113,19 +195,20 @@ def _open_sentence(text: str, contents: list[str], say_empty: bool = True) -> st
     return text.removesuffix(".") + ", empty." if say_empty else text
 
 
+def container_sentence(container: Container) -> str:
+    """A container's sentence in its current state."""
+    text = container.room_sentence()
+    if not container.is_open:
+        return text or f"There is a {container.name}."
+    names = [item.name for item in container.contents]
+    # Not "empty" while something hides inside, or when world.json words the state.
+    say_empty = not container.hidden and container.state not in container.room_texts
+    return _open_sentence(text or f"The {container.name} is open.", names, say_empty)
+
+
 def object_sentences(room: Room) -> list[str]:
     """One sentence per object in its current state, then the door."""
-    sentences = []
-    for container in room.containers:
-        text = container.room_sentence()
-        if container.is_open:
-            names = [item.name for item in container.contents]
-            text = text or f"The {container.name} is open."
-            # Not "empty" while something hides inside, or when world.json words the state.
-            say_empty = not container.hidden and container.state not in container.room_texts
-            sentences.append(_open_sentence(text, names, say_empty))
-        else:
-            sentences.append(text or f"There is a {container.name}.")
+    sentences = [container_sentence(container) for container in room.containers]
     sentences += [item.floor_text for item in room.items if item.floor_text]
     dropped = [item.name for item in room.items if not item.floor_text]
     if dropped:
@@ -149,191 +232,299 @@ def description_rows(room: Room) -> list[str]:
     return fit(" ".join(object_sentences(room)), DESCRIPTION_LINES)
 
 
-def available_commands(room: Room, inventory: Inventory) -> list[str]:
-    """The exact commands that make sense right now, in the order the spec gives."""
-    commands = [f"open {c.name}" for c in room.containers if not c.is_open]
-    commands += [f"take {item.name}" for item in room.items]
+def visible_names(room: Room, inventory: Inventory) -> list[str]:
+    """Names Tab may offer: what can be seen in the room, what is carried, and the door.
+    Items inside a closed container are never listed, so completion gives nothing away."""
+    names = [container.name for container in room.containers]
+    names += [item.name for item in room.items]
     for container in room.containers:
         if container.is_open:
-            commands += [f"take {item.name}" for item in container.contents]
-    commands += [f"drop {item.name}" for item in inventory.items]
-    commands.append(f"open {DOOR}")
-    return commands + META_COMMANDS
+            names += [item.name for item in container.contents]
+    names += [item.name for item in inventory.items]
+    names.append(DOOR)
+    return list(dict.fromkeys(names))
 
 
-def wrap_commands(commands: list[str]) -> list[list[str]]:
-    """Group whole commands into COMMAND_LINES rows; the last row ends with … if some don't fit."""
-    width = TEXT_WIDTH - len(COMMANDS_PREFIX)
-    rows: list[list[str]] = [[]]
-    for command in commands:
-        row = rows[-1]
-        if row and len(COMMAND_GAP.join([*row, command])) > width:
-            if len(rows) == COMMAND_LINES:
-                while row and len(COMMAND_GAP.join([*row, ELLIPSIS])) > width:
-                    row.pop()
-                row.append(ELLIPSIS)
-                break
-            rows.append([])
-        rows[-1].append(command)
-    return rows + [[] for _ in range(COMMAND_LINES - len(rows))]
+def complete(typed: str, names: Sequence[str]) -> list[str]:
+    """Whole-line completions for Tab: a verb first, then one of `names`.
+
+    `ins` → `inspect `, `inspect fu` → `inspect fuse box`, `use scr` → `use screwdriver `,
+    then `use screwdriver o` → `use screwdriver on `.
+    """
+    words = typed.lower().split()
+    ends_with_space = typed.endswith(" ")
+    if len(words) <= 1 and not ends_with_space:
+        start = words[0] if words else ""
+        return [v + (" " if v in NAMED_VERBS else "") for v in TAB_VERBS if v.startswith(start)]
+    verb = words[0]
+    if verb not in NAMED_VERBS:
+        return []
+    rest = " ".join(words[1:]) + (" " if ends_with_space and len(words) > 1 else "")
+    if verb != USE:
+        return [f"{verb} {name}" for name in names if name.startswith(rest)]
+    matches = [f"{USE} {name} " for name in names if name.startswith(rest)]
+    for name in names:
+        if not rest.startswith(name + " "):
+            continue
+        tail = rest[len(name) + 1 :]
+        if f"{ON} ".startswith(tail):
+            matches.append(f"{USE} {name} {ON} ")
+        elif tail.startswith(f"{ON} "):
+            target = tail[len(ON) + 1 :]
+            matches += [f"{USE} {name} {ON} {t}" for t in names if t.startswith(target)]
+    return list(dict.fromkeys(matches))
 
 
-def complete(typed: str, commands: list[str]) -> list[str]:
-    """The available commands that start with what has been typed so far (for Tab)."""
-    start = " ".join(typed.lower().split()) + (" " if typed.endswith(" ") and typed.strip() else "")
-    return [command for command in commands if command.startswith(start)]
-
-
-def carrying_text(inventory: Inventory) -> str:
-    """The inventory status written into the panel's bottom border."""
-    names = ", ".join(item.name for item in inventory.items) or "nothing"
-    return f"Carrying ({inventory.count()}/{inventory.capacity}): {names}"
-
-
-def _message(text: str, tone: Tone) -> list[str]:
-    """The last message in MESSAGE_LINES rows, with its tone's marker on the first row."""
-    marker = MARKERS[tone]
-    return fit(text, MESSAGE_LINES, marker, " " * len(marker))
-
-
-def build_screen(
-    room: Room,
-    inventory: Inventory,
-    art: Art,
-    message: str,
-    tone: Tone = Tone.RESULT,
-    focus: str | None = None,
-) -> Screen:
-    """Everything shown during play, as plain strings."""
-    return Screen(
-        title=room.name.upper(),
-        art=compose(art, room),
-        description=description_rows(room),
-        message=_message(message, tone),
-        tone=tone,
-        commands=wrap_commands(available_commands(room, inventory)),
-        options=available_commands(room, inventory),
-        carrying=carrying_text(inventory),
-        prompt=f"{INDENT}[{room.name}] > ",
-        focus=sprite_box(art, room, focus) if focus else None,
-        light=art.light,
-    )
-
-
-def build_win_screen(room: Room, art: Art, message: str, ending: str) -> Screen:
-    """The last screen: the open door, the ending text, and no prompt."""
-    return Screen(
-        title=room.name.upper(),
-        art=compose(art, room),
-        description=fit(ending, DESCRIPTION_LINES),
-        message=_message(message, Tone.WIN),
-        tone=Tone.WIN,
-        commands=[],
-        carrying="",
-        prompt="",
-        footer=WIN_FOOTER,
-        focus=sprite_box(art, room, DOOR),
-        light=art.light,
-    )
-
-
-def _art_row(screen: Screen, row: int) -> Line:
-    """Split one art row into runs: in the spotlight, in the light, or in shadow."""
-    cells = screen.art[row]
-    focus = screen.focus
-
-    def role(column: int) -> Role:
-        if focus and focus.contains(row, column):
-            return Role.FOCUS
-        if screen.light and screen.light[row][column] == LIT:
-            return Role.LIT
-        return Role.ART
-
+def _runs(chars: str, roles: Sequence[Role]) -> Line:
+    """Join neighbouring cells with the same role into one segment."""
     line: Line = []
-    for column, char in enumerate(cells):
-        current = role(column)
-        if line and line[-1][1] is current:
-            line[-1] = (line[-1][0] + char, current)
+    for char, role in zip(chars, roles, strict=True):
+        if line and line[-1][1] is role:
+            line[-1] = (line[-1][0] + char, role)
         else:
-            line.append((char, current))
+            line.append((char, role))
     return line
 
 
-PANEL_INNER_WIDTH = BLOCK_WIDTH - len("╭╮")  # cells between the panel's two side borders
-STATUS_LEAD = "─"  # border drawn before the carrying status, after the corner
+def room_picture(art: Art, room: Room, focus: Box | None = None) -> list[Line]:
+    """The room composed for its current state, each cell in shadow, light or the spotlight."""
+    lines = []
+    for row, cells in enumerate(compose(art, room)):
+
+        def role(column: int, char: str, row: int = row) -> Role:
+            if focus and focus.contains(row, column):
+                return Role.FOCUS
+            if art.light[row][column] == LIT:
+                return Role.LIGHT if char in LIGHT_SOURCES else Role.LIT
+            return Role.SHADOW
+
+        lines.append(_runs(cells, [role(column, char) for column, char in enumerate(cells)]))
+    return lines
 
 
-def _top_border(title: str) -> Line:
-    """The top border, with the room's name centred in it."""
-    label = f" {title} "
-    left = (PANEL_INNER_WIDTH - len(label)) // 2
-    right = PANEL_INNER_WIDTH - left - len(label)
-    return [("╭" + "─" * left, Role.BORDER), (label, Role.TITLE), ("─" * right + "╮", Role.BORDER)]
-
-
-def _bottom_border(carrying: str) -> Line:
-    """The bottom border, with what the player carries written into it."""
-    room_for_status = PANEL_INNER_WIDTH - len(STATUS_LEAD) - len("  ") - len(STATUS_LEAD)
-    if len(carrying) > room_for_status:
-        carrying = _cut(carrying, room_for_status)
-    status = f" {carrying} " if carrying else ""
-    rest = PANEL_INNER_WIDTH - len(STATUS_LEAD) - len(status)
+def frame_lines(frame: Frame, focus: bool = False) -> list[Line]:
+    """A picture frame (close-up or icon) with each cell in its colour letter's role."""
     return [
-        ("╰" + STATUS_LEAD, Role.BORDER),
-        (status, Role.LABEL),
-        ("─" * rest + "╯", Role.BORDER),
+        _runs(row, [Role.FOCUS if focus else COLOR_ROLES.get(c, Role.SHADOW) for c in colors])
+        for row, colors in zip(frame.rows, frame.colors, strict=True)
     ]
 
 
-def _panel(screen: Screen) -> list[Line]:
-    """The framed art panel: top border, art rows, bottom border."""
-    rows: list[Line] = [
-        [("│ ", Role.BORDER), *_art_row(screen, row), (" │", Role.BORDER)]
-        for row in range(len(screen.art))
+def moves_label(moves: int) -> str:
+    """The move counter in the border: `1 move`, `11 moves`."""
+    return f"{moves} move" if moves == 1 else f"{moves} moves"
+
+
+def top_border(title: str, moves: int) -> Line:
+    """The room panel's top border: the title centred, the move counter near the right corner."""
+    if len(title) > TITLE_MAX:
+        title = title[: TITLE_MAX - len(ELLIPSIS)] + ELLIPSIS
+    label = f" {title} "
+    counter = f" {moves_label(moves)} "
+    left = (PANEL_INNER_WIDTH - cell_len(label)) // 2  # as the spec mocks: odd column goes right
+    right = PANEL_INNER_WIDTH - left - cell_len(label) - len(counter) - 1
+    return [
+        ("╭" + "─" * left, Role.BORDER),
+        (label, Role.TITLE),
+        ("─" * right, Role.BORDER),
+        (counter, Role.LABEL),
+        ("─╮", Role.BORDER),
     ]
-    return [_top_border(screen.title), *rows, _bottom_border(screen.carrying)]
+
+
+def bottom_border(hint: str = "") -> Line:
+    """The room panel's bottom border, with an optional hint near the left corner."""
+    if not hint:
+        return [("╰" + "─" * PANEL_INNER_WIDTH + "╯", Role.BORDER)]
+    label = f" {hint} "
+    rest = PANEL_INNER_WIDTH - 1 - len(label)
+    return [("╰─", Role.BORDER), (label, Role.LABEL), ("─" * rest + "╯", Role.BORDER)]
+
+
+def _framed(picture: list[Line]) -> list[Line]:
+    return [[("│ ", Role.BORDER), *row, (" │", Role.BORDER)] for row in picture]
 
 
 def _text(text: str, role: Role) -> Line:
     return [(INDENT + text, role)] if text else []
 
 
-def _commands(row: list[str], first: bool) -> Line:
-    """One row of the command hints; only the first row carries the "Try" label."""
-    if not row:
-        return []
-    prefix = COMMANDS_PREFIX if first else " " * len(COMMANDS_PREFIX)
-    line: Line = [(INDENT + prefix, Role.LABEL)]
-    for index, command in enumerate(row):
-        if index:
-            line.append((COMMAND_GAP, Role.LABEL))
-        line.append((command, Role.LABEL if command == ELLIPSIS else Role.COMMAND))
-    return line
+def verb_panel() -> list[Line]:
+    """The fixed verb panel: 4 rows of 2 cells, each a verb padded to 8 and its short form."""
+    rows: list[Line] = [[("╭" + "─" * (VERB_PANEL_WIDTH - 2) + "╮", Role.BORDER)]]
+    for index in range(0, len(VERBS), 2):
+        line: Line = [("│ ", Role.BORDER)]
+        for verb, short in VERBS[index : index + 2]:
+            verb_role = Role.LABEL if verb in GAME_VERBS else Role.VERB
+            line += [
+                (verb.ljust(VERB_WIDTH), verb_role),
+                (short.ljust(CELL_WIDTH - VERB_WIDTH), Role.LABEL),
+            ]
+        line.append((" │", Role.BORDER))
+        rows.append(line)
+    rows.append([("╰" + "─" * (VERB_PANEL_WIDTH - 2) + "╯", Role.BORDER)])
+    return rows
 
 
-def layout(screen: Screen) -> list[Line]:
-    """Every row above the prompt, top to bottom, as role-tagged segments."""
-    lines = _panel(screen)
-    lines += [_text(row, Role.TEXT) for row in screen.description]
-    lines.append([])
-    lines += [_text(row, TONE_ROLES[screen.tone]) for row in screen.message]
-    lines.append([])
-    if screen.commands:
-        lines += [_commands(row, index == 0) for index, row in enumerate(screen.commands)]
-        lines.append([])
-    if screen.footer:
-        lines.append(_text(screen.footer, Role.LABEL))
-    return lines
+def slot(name: str | None, icon: Picture | None = None, focus: bool = False) -> list[Line]:
+    """One inventory slot, 14 × 6: a frame, the icon centred, the name under it."""
+    border = Role.FOCUS if focus else Role.BORDER
+    rows: list[Line] = [[("╭" + "─" * SLOT_INNER + "╮", border)]]
+    icon_rows = frame_lines(icon.frame(), focus) if icon is not None else []
+    for index in range(ICON.height):
+        if index < len(icon_rows):
+            inside: Line = [(ICON_PAD, border), *icon_rows[index], (ICON_PAD, border)]
+        else:
+            inside = [(" " * SLOT_INNER, border)]
+        rows.append([("│", border), *inside, ("│", border)])
+    label = name or ""
+    if len(label) > SLOT_INNER:
+        label = label[: SLOT_INNER - len(ELLIPSIS)] + ELLIPSIS
+    left = (SLOT_INNER - len(label)) // 2  # the odd space goes right
+    centred = " " * left + label + " " * (SLOT_INNER - left - len(label))
+    rows.append([("│", border), (centred, Role.VERB), ("│", border)])
+    rows.append([("╰" + "─" * SLOT_INNER + "╯", border)])
+    return rows
+
+
+def panels(
+    inventory: Inventory, icons: Mapping[str, Picture], focus: str | None = None
+) -> list[Line]:
+    """The verb panel and the four inventory slots side by side (rows 18-23)."""
+    items = inventory.items[:SLOTS]
+    slots = [slot(item.name, icons.get(item.name), focus == item.name) for item in items] + [
+        slot(None) for _ in range(SLOTS - len(items))
+    ]
+    rows = []
+    for index, verb_row in enumerate(verb_panel()):
+        line: Line = [*verb_row]
+        for column in slots:
+            line += [(PANEL_GAP, Role.BORDER), *column[index]]
+        rows.append(line)
+    return rows
+
+
+def history_rows(history: Sequence[Message]) -> list[Line]:
+    """The last results, newest at the bottom. The newest is in its tone's role and may take
+    two rows; older ones are dim and take one row each.
+
+    Before the first command, the story so far (narration) sits above a one-line hint.
+    """
+    if all(message.tone is Tone.NARRATION for message in history):
+        story = [row for message in history for row in fit(message.text, NEWEST_LINES) if row]
+        rows = [_text(row, Role.NARRATION) for row in story[-(HISTORY_LINES - 1) :]]
+        rows.append(_text(FIRST_HINT, Role.LABEL))
+        return [[] for _ in range(HISTORY_LINES - len(rows))] + rows
+    newest = history[-1]
+    marker = MARKERS[newest.tone]
+    newest_rows = [row for row in fit(newest.text, NEWEST_LINES, marker, " " * len(marker)) if row]
+    rows = [_text(row, TONE_ROLES[newest.tone]) for row in newest_rows]
+    room_left = HISTORY_LINES - len(rows)
+    older = list(history[:-1])[-room_left:] if room_left else []
+    for message in reversed(older):
+        rows.insert(0, _text(fit(MARKERS[message.tone] + message.text, 1)[0], Role.HISTORY))
+    return [[] for _ in range(HISTORY_LINES - len(rows))] + rows
+
+
+def _layout(
+    title: str,
+    moves: int,
+    picture: list[Line],
+    hint: str,
+    description: list[str],
+    inventory: Inventory,
+    icons: Mapping[str, Picture],
+    history: Sequence[Message],
+    slot_focus: str | None,
+) -> list[Line]:
+    """Every row above the prompt, top to bottom (docs/SCREEN-SPEC.md §3 row map)."""
+    rows = [top_border(title, moves), *_framed(picture), bottom_border(hint)]
+    rows += [_text(row, Role.TEXT) for row in description]
+    rows.append([])
+    rows += panels(inventory, icons, slot_focus)
+    rows.append([])
+    rows += history_rows(history)
+    rows.append([])
+    return rows
+
+
+def build_screen(
+    room: Room,
+    inventory: Inventory,
+    art: Art,
+    history: Sequence[Message] = (),
+    *,
+    moves: int = 0,
+    icons: Mapping[str, Picture] | None = None,
+    focus: str | None = None,
+    inspected: Inspected | None = None,
+) -> Screen:
+    """The main screen, or the inspect view when `inspected` is given.
+
+    `history` is every entry so far, oldest first (the intro first, as narration). `focus`
+    names the thing the last command changed: its slot is spotlit if it is carried, its
+    sprite in the room otherwise.
+    """
+    icons = icons or {}
+    carried = focus is not None and inventory.has_item(focus)
+    room_focus = sprite_box(art, room, focus) if focus and not carried else None
+    title, hint = room.name.upper(), ""
+    picture = room_picture(art, room, room_focus)
+    description = description_rows(room)
+    if inspected is not None:
+        title, hint = inspected.name.upper(), INSPECT_HINT
+        description = fit(inspected.description, DESCRIPTION_LINES)
+        if inspected.picture is not None:
+            picture = frame_lines(inspected.picture.frame(inspected.state))
+        else:  # no close-up drawn yet: the room stays, with the thing in the spotlight
+            picture = room_picture(art, room, sprite_box(art, room, inspected.name))
+    rows = _layout(
+        title,
+        moves,
+        picture,
+        hint,
+        description,
+        inventory,
+        icons,
+        history,
+        focus if carried else None,
+    )
+    return Screen(rows, f"{INDENT}[{room.name}] > ", visible_names(room, inventory))
+
+
+def build_win_screen(
+    room: Room,
+    inventory: Inventory,
+    art: Art,
+    history: Sequence[Message],
+    ending: str,
+    *,
+    moves: int = 0,
+    icons: Mapping[str, Picture] | None = None,
+) -> Screen:
+    """The last screen: the open door in the spotlight, the ending text, and no prompt."""
+    rows = _layout(
+        room.name.upper(),
+        moves,
+        room_picture(art, room, sprite_box(art, room, DOOR)),
+        "",
+        fit(ending, DESCRIPTION_LINES),
+        inventory,
+        icons or {},
+        history,
+        None,
+    )
+    return Screen(rows, "", footer=WIN_FOOTER)
 
 
 # One ASCII character per cell for terminals that can't show UTF-8, so widths don't change.
 ASCII_FALLBACK = str.maketrans(
     {
-        **dict.fromkeys("╭╮╰╯┌┐└┘┬┴├┤╔╗╚╝╧╤┓┣┸┑╡", "+"),
-        **dict.fromkeys("─▔━▀╸╾▬", "-"),
+        **dict.fromkeys("╭╮╰╯┌┐└┘┬┴├┤╔╗╚╝╧╤┓┣┸┑╡┳┿╪", "+"),
+        **dict.fromkeys("─▔━▀╸╺╾▬╌", "-"),
         **dict.fromkeys("═", "="),
         **dict.fromkeys("│║▌▐┃╻╹", "|"),
-        **dict.fromkeys("▓▮█▟▙", "#"),
+        **dict.fromkeys("▓▮█▟▙▜▛▆▄", "#"),
         **dict.fromkeys("▗▖▝▘", "."),
         **dict.fromkeys("▪▫▯", "o"),
         **dict.fromkeys("╨╥", "'"),
@@ -350,8 +541,9 @@ ASCII_FALLBACK = str.maketrans(
         "✗": "x",
         "✓": "+",
         "×": "x",
+        "╳": "x",
         "…": ".",
-        "\u00a0": " ",
+        " ": " ",
     }
 )
 
@@ -366,6 +558,10 @@ def line_text(line: Line) -> str:
     return "".join(text for text, _ in line)
 
 
-def too_small_message(columns: int, rows: int) -> str:
-    """What to show instead of the game when the terminal is below the minimum size."""
-    return f"Make the window at least {MIN_COLUMNS}×{MIN_ROWS} (it is now {columns}×{rows})."
+def too_small_lines(columns: int, rows: int) -> list[tuple[str, Role]]:
+    """What the too-small screen says (docs/SCREEN-SPEC.md §10), one role per line."""
+    return [
+        ("Make the window bigger", Role.TITLE),
+        (f"The game needs {MIN_COLUMNS} × {MIN_ROWS}. It is now {columns} × {rows}.", Role.TEXT),
+        ("It redraws as soon as it fits.", Role.LABEL),
+    ]

@@ -6,16 +6,14 @@ from dataclasses import dataclass, field
 
 from rich.cells import cell_len
 
-from .models import DOOR, Room
+from .models import CLOSED, DOOR, OPEN, Room
 
-SCREEN_WIDTH = 72  # cells, the inside of the art panel
-ART_HEIGHT = 10  # rows
+SCREEN_WIDTH = 92  # cells, the picture area inside the room panel
+ART_HEIGHT = 11  # rows
 BACKGROUND = "background"
 LIGHT = "light"  # optional map: "#" where the light falls, anything else is shadow
 LIT = "#"
 FLOOR = "@floor"  # placement suffix for where an item lies once dropped
-OPEN = "open"
-CLOSED = "closed"
 
 _HEADER = re.compile(r"^\[([a-z0-9 :]+)\]$")
 
@@ -209,12 +207,19 @@ def _fit(section: str, lines: list[str], size: PictureSize) -> tuple[str, ...]:
     return _pad(lines + [""] * (size.height - len(lines)), size.width)
 
 
+def _state_sprite(art: Art, name: str, state: str, fallback: str) -> str:
+    """The sprite for an object's state, e.g. "vent:flashed", or its open/closed one if the
+    art has no sprite for that story state."""
+    key = sprite_key(name, state)
+    return key if key in art.sprites else sprite_key(name, fallback)
+
+
 def drawn(art: Art, room: Room) -> list[DrawnObject]:
     """Each object drawn right now, in drawing order.
 
-    Containers show their open or closed sprite, items show inside an open container or on the
-    floor (a dropped item at its "@floor" place), and the door comes last. Objects without a
-    sprite or a place are not drawn.
+    Containers show the sprite for their state, items show inside an open container or on the
+    floor (a dropped item at its "@floor" place), and the door comes last, locked, unlocked or
+    open. Objects without a sprite or a place are not drawn.
     """
     found: list[DrawnObject] = []
 
@@ -223,9 +228,10 @@ def drawn(art: Art, room: Room) -> list[DrawnObject]:
             found.append(DrawnObject(name, key, art.placements[place]))
 
     for container in room.containers:
+        fallback = OPEN if container.is_open else CLOSED
         add(
             container.name,
-            sprite_key(container.name, OPEN if container.is_open else CLOSED),
+            _state_sprite(art, container.name, container.state, fallback),
             container.name,
         )
         if container.is_open:
@@ -234,7 +240,7 @@ def drawn(art: Art, room: Room) -> list[DrawnObject]:
     for item in room.items:
         place = floor_key(item.name)
         add(item.name, sprite_key(item.name), place if place in art.placements else item.name)
-    add(DOOR, sprite_key(DOOR, OPEN if room.door.is_open else CLOSED), DOOR)
+    add(DOOR, sprite_key(DOOR, room.door.state), DOOR)
     return found
 
 
