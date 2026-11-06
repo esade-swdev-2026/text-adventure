@@ -51,13 +51,16 @@ stated outright:
 
 1. **The world is three separate rooms, not a grid.** There are no directions and no walking
    back. The only way to move is forward, through the current room's door.
-2. **A door uses up its key.** On success, `Door.open` removes the required item from the
-   inventory, so used keys stop taking up slots.
+2. **A door is unlocked, then opened, and uses up its key.** `use key on door` unlocks it
+   (`Door.unlock` removes the key from the inventory, so it stops taking up a slot), and only
+   then does `open door` open it. A door can also wait for other objects to be in a state
+   first (`needs`, e.g. the power back on); until then the key won't turn.
 3. **A container keeps its tool.** On success, `Container.open` leaves the required item in
    the inventory (for example, a screwdriver can be used again).
 4. **Containers only open once.** An opened container stays open, and its contents can then
    be taken. Items inside a closed container are hidden: `take` can't reach them, and `look`
-   doesn't list them.
+   doesn't list them. An item can also be **hidden** on purpose (`"hidden": true`): it can't
+   be seen, taken or inspected, even in an open container, until a `use` reveals it.
 5. **Locked containers look like any other closed container.** `open` on one without the right
    item prints that it is locked and changes nothing. The player has to find out what is locked
    by trying.
@@ -71,7 +74,14 @@ stated outright:
 9. **Quit ends the game at once.** Nothing is saved.
 10. **Names are unique across the whole world, and none is called `door`.** Commands and
     `required_item` both refer to things by name, so names must be unique, and `door` is
-    reserved for the room's door.
+    reserved for the room's door. No name contains the words `on`, `in` or `with`, which split
+    `use <item> on <thing>`.
+11. **Moves count what changes the game.** A successful `open`, `take`, `drop` or `use` is a
+    move (`Player.moves`). Typos, errors, refusals, `look`, `inspect`, `inventory` and `help`
+    are not. Winning says `Escaped in N moves. Par is P.`, adding ` Sharp.` at or under par
+    (`par` in `world.json`; without it, just `Escaped in N moves.`).
+12. **Every item has a purpose.** No decoys: each item opens, unlocks, reveals or powers
+    something on the way out.
 
 ---
 
@@ -83,11 +93,14 @@ Commands are the whole interface, so their grammar is fixed here.
 
 ```
 command  =  verb [ "the" ] [ name ]
+use      =  "use" [ "the" ] item [ ( "on" | "in" | "with" ) [ "the" ] name ]
+inspect  =  "look at" [ "the" ] name          (same as inspect <name>)
 ```
 
 - Input is trimmed, lower-cased and has repeated spaces collapsed before parsing.
 - The first word is the verb. Everything after it (minus a leading `the`) is the object name,
-  which may be several words (`take brass key`).
+  which may be several words (`take brass key`). For `use`, the first `on`, `in` or `with`
+  splits the item from the thing it is used on (`use fuse on fuse box`).
 - The name must match an object's full name exactly (case-insensitive). There is no
   partial matching.
 
@@ -96,9 +109,11 @@ command  =  verb [ "the" ] [ name ]
 | Command          | Aliases            | Object      | What it does                                                    |
 |------------------|--------------------|-------------|-----------------------------------------------------------------|
 | `look`           | `l`                | none        | Repeats the room's name and description, and lists what is visible (see below). |
-| `open <name>`    | —                  | required    | Opens a container in the room. `open door` tries the room's door. |
+| `inspect <name>` | `x`, `examine`, `look at` | required | The detailed description of an item (in the room or carried), a container or the door, for its current state. Clues live here. Not a move. |
+| `open <name>`    | —                  | required    | Opens a container in the room. `open door` opens the room's door once it is unlocked. |
 | `take <name>`    | `get`              | required    | Takes a visible item (on the floor or in an open container).    |
 | `drop <name>`    | —                  | required    | Drops a carried item onto the floor of the current room.        |
+| `use <item> [on <name>]` | `in`, `with` for `on` | required | Uses a carried item on something (or on its own). What happens is written in `world.json` (section 8). |
 | `inventory`      | `i`, `inv`         | none        | Lists carried items with descriptions and slots used (`n/4`).   |
 | `help`           | `?`                | none        | Lists these commands.                                           |
 | `quit`           | `q`, `exit`        | none        | Ends the game.                                                  |
@@ -148,12 +163,17 @@ There is no lamp here.
 | Situation                                   | Message                                                      |
 |---------------------------------------------|--------------------------------------------------------------|
 | Empty input                                 | (nothing printed; the prompt is shown again)                 |
-| Unknown verb                                | `I don't know how to "<verb>". Type "help" for a list of commands.` |
-| Verb needs an object but none was given     | `Open what?` / `Take what?` / `Drop what?`                   |
+| Unknown verb                                | `I don't know how to "<verb>". Type "help" for the verbs.`   |
+| Verb needs an object but none was given     | `Open what?` / `Take what?` / `Inspect what?` / `Use what?`  |
+| `use <item> on` with nothing after it       | `Use the <item> on what?`                                    |
 | Verb takes no object but one was given      | `"<verb>" doesn't take an object.`                           |
 | `open`: no container with that name here    | `There is no <name> here.`                                   |
-| `take`: no visible item with that name      | `There is no <name> here.` (also for items in closed containers) |
-| `drop`: not carrying that item              | `You aren't carrying a <name>.`                              |
+| `take`/`inspect`: nothing visible with that name | `There is no <name> here.` (also for items in closed containers and hidden items) |
+| `drop`/`use`: not carrying that item        | `You aren't carrying a <name>.`                              |
+| `use <item>` alone, and it has no own use   | `Use the <item> on what?`                                    |
+| `use`: a combination that does nothing      | The item's `refusal`, or `The <item> is no use on the <name>.` |
+| `use`: a rule's `needs` not met yet         | The rule's `refusal` (e.g. `The grille is bolted shut. Get it open first.`) |
+| `open door` while it is locked              | `The door is locked.`                                        |
 
 ---
 
@@ -165,14 +185,15 @@ Every module is either **pure** (works on plain data, never prints, never reads 
 
 | File | Kind | Contents |
 |---|---|---|
-| `models.py` | pure | `Item`, `Door`, `Container`, `Room`, `Player`, `Inventory`, the name lookups, `CAPACITY` and the reserved name `DOOR`. |
-| `commands.py` | pure | `Verb`, the alias table, `Command(verb, name)` and `parse(text) -> Command \| None`, which raises `CommandError`. |
-| `game.py` | pure | `apply_command(player, command) -> Outcome` (the rules) and `play_turn(player, text)`, which parses first. `Outcome` holds `message`, `error`, `won` and `quit`. |
-| `world.py` | pure | `build_world(data, art, pictures) -> World` checks the parsed JSON and raises `WorldError`. `World` holds `first_room`, `intro`, `ending`, each room's `Art` and each object's icon and close-up. `missing_pictures(world)` lists the art still to draw. |
+| `models.py` | pure | `Item`, `Door`, `Container`, `Room`, `Player`, `Inventory`, the `Use` rule, the name lookups, the state names, `CAPACITY` and the reserved name `DOOR`. |
+| `commands.py` | pure | `Verb`, the alias table, `Command(verb, name, target)` and `parse(text) -> Command \| None`, which raises `CommandError`. |
+| `game.py` | pure | `apply_command(player, command, par) -> Outcome` (the rules, and the move count) and `play_turn(player, text, par)`, which parses first. `Outcome` holds `message`, `error`, `won`, `quit`, `subject`, `moved` and `inspected` (an `Inspection`). `win_message(moves, par)`. |
+| `world.py` | pure | `build_world(data, art, pictures) -> World` checks the parsed JSON and raises `WorldError`. `World` holds `first_room`, `intro`, `ending`, `par`, each room's `Art` and each object's icon and close-up. `missing_pictures(world)` lists the art still to draw. |
+| `solve.py` | pure | `shortest_win(world)`: a breadth-first search over game states that returns the fewest commands that win, or `None`. `reachable(world)` returns every state the player can reach. Used by `check` and the tests. |
 | `art.py` | pure | `parse_art(text) -> Art` and `compose(art, room) -> list[str]`, which draws each object's sprite for its current state. `parse_picture(text, size) -> Picture` reads an icon or close-up. Widths are in terminal cells. |
 | `screen.py` | pure | `describe_room`, `available_commands`, `build_screen` / `build_win_screen` and `layout(screen)`, which returns every row as text tagged with a role (border, art, error…). |
 | `terminal.py` | I/O | `Terminal`: draws a screen with rich (one named palette, centred, cleared between turns), reads a line, prints "Goodbye.". |
-| `cli.py` | I/O | Typer commands `play [--world PATH]` and `check PATH`. Reads `world.json`, the art files and the picture files, runs the loop, turns every load error into `Error: …` and exit code 1, and handles Ctrl-C / Ctrl-D. |
+| `cli.py` | I/O | Typer commands `play [--world PATH]` and `check PATH` (which also proves the world can be won within its par). Reads `world.json`, the art files and the picture files, runs the loop, turns every load error into `Error: …` and exit code 1, and handles Ctrl-C / Ctrl-D. |
 | `world.json`, `art/*.txt` | data | The story and the drawings. |
 
 The old numbered `menu.py` is gone: typed commands replaced it.
@@ -207,14 +228,16 @@ Dependencies only point downward. Lower layers know nothing about the layers abo
 
 | Class       | Module        | Responsibility                                                          |
 |-------------|---------------|-------------------------------------------------------------------------|
-| `Item`      | `models.py`   | Name, description, `portable` flag, `floor_text` (its sentence while on the floor). |
-| `Container` | `models.py`   | Name, open/closed, optional `required_item` (a name), `contents`, `closed_text` / `open_text`. |
-| `Door`      | `models.py`   | `required_item`, `next_room` (a `Room`, or `None` for the exit) and `is_open`. |
-| `Room`      | `models.py`   | Name, mood description, containers, loose items, one door. `remove_item` takes an item off the floor or out of an open container. |
+| `Item`      | `models.py`   | Name, description, `portable` flag, `floor_text` (its sentence while on the floor), `details` (inspect texts by state), `uses`, `refusal`, and a `story` state a `use` may set (`state`). |
+| `Container` | `models.py`   | Name, open/closed, optional `required_item` (a name) with `needs` / `refusal`, `contents`, `hidden` items, `closed_text` / `open_text`, `room_texts` (its room sentence by state, `room_sentence()`), `details`, `uses`, and `state`: its story state, else `open` / `closed`. |
+| `Door`      | `models.py`   | `required_item`, `needs` / `refusal`, `unlock_text`, `room_texts`, `details`, `uses`, `next_room` (a `Room`, or `None` for the exit), `is_unlocked`, `is_open`, and `state`: `locked` / `unlocked` / `open`. |
+| `Use`       | `models.py`   | One rule from `world.json`: the `item` used (or `None` for an item's own use), `text`, `needs` and `refusal`, the new story `state`, the names to `reveal`, and whether the item is `consume`d. |
+| `Room`      | `models.py`   | Name, mood description, containers, loose items, `hidden` loose items, one door. `remove_item` takes an item off the floor or out of an open container; `reveal(name)` brings a hidden item into sight. |
 | `Inventory` | `models.py`   | Up to `CAPACITY = 4` items. Add, find by name, count, use up, drop, list. Refuses a fifth. |
-| `Player`    | `models.py`   | `current_room` and one `Inventory`. `take_item` and `drop_item` move items between room and inventory. |
-| `Verb`, `Command` | `commands.py` | The seven verbs and one parsed command.                        |
-| `Outcome`   | `game.py`     | What one command did: the message, and whether it was an error, a win or a quit. |
+| `Player`    | `models.py`   | `current_room`, one `Inventory` and `moves`. `take_item` and `drop_item` move items between room and inventory. |
+| `Verb`, `Command` | `commands.py` | The nine verbs and one parsed command (`target` is the thing a `use` is aimed at). |
+| `Outcome`   | `game.py`     | What one command did: the message, whether it was an error, a win or a quit, the object it changed (`subject`), whether it was a move (`moved`), and what was inspected. |
+| `Inspection` | `game.py`    | What `inspect` looked at: `name`, `kind` (`item` / `container` / `door`), `state` (picks the close-up frame) and `text`. |
 | `Art`       | `art.py`      | Background rows, named sprites, and where each object's sprite goes.     |
 | `Position`, `Box`, `DrawnObject` | `art.py` | A cell (row, column); the rectangle a sprite covers, used for the spotlight; one object drawn right now (name, sprite section, position). |
 | `Picture`, `Frame`, `PictureSize` | `art.py` | An icon or close-up: one `Frame` (rows plus a colour letter per cell) per state, at a fixed `PictureSize` (`ICON` 8 × 3, `CLOSEUP` 92 × 11). |
@@ -256,8 +279,10 @@ are. Ctrl-C and Ctrl-D end the game the same way as `quit`.
 | Verb        | Looks up / calls                                           | Success                                                     | Failure                                         |
 |-------------|------------------------------------------------------------|-------------------------------------------------------------|-------------------------------------------------|
 | `LOOK`      | —                                                          | Redraws the screen ("You look around.").                    | —                                               |
-| `OPEN`      | `door` → `room.door.open(inventory)`                       | If `door.is_exit()`: the player wins. Otherwise `player.current_room = door.next_room`. | `False` → "The door is locked." |
-| `OPEN`      | other name → `room.find_container(name)`, then `container.open(inventory)` | "You open the X. Inside: …" (or "It's empty."). Already open → "The X is already open." | Not found → "There is no X here." `False` → "The X is locked." |
+| `INSPECT`   | the door, a container, a visible item or a carried one     | The thing's `inspect` text for its state (or its plain description), with an `Inspection`. | Not visible → "There is no X here." |
+| `OPEN`      | `door` → `room.door.open()`                                | If `door.is_exit()`: the player wins. Otherwise `player.current_room = door.next_room`. | Still locked → "The door is locked." |
+| `OPEN`      | other name → `room.find_container(name)`, then `container.open(inventory)` | "You open the X. Inside: …" (or "It's empty.", or "You can't make anything out." while something hides in it). Already open → "The X is already open." | Not found → "There is no X here." No tool → "The X is locked." `needs` not met → its `refusal`. |
+| `USE`       | the carried item, then the target's `uses` rule for it      | The rule's `text`; its `state`, `reveal` and `consume` are applied. With no rule, the lock's own tool works like `open` (container) or unlocks the door (if its `needs` are met; the key is used up). | See the error table in section 3. |
 | `TAKE`      | `room.find_visible_item(name)`, then `player.take_item(item)` | "You take the Y."                                        | Not found → "There is no Y here." `ValueError` → its message (hands full, can't be carried). |
 | `DROP`      | `inventory.find(name)`, then `player.drop_item(item)`      | "You drop the Y."                                           | Not found → "You aren't carrying a Y."         |
 | `INVENTORY` | `inventory.show_inventory()`                               | Lists items with descriptions.                              | Empty → "You are carrying nothing."             |
@@ -266,10 +291,11 @@ are. Ctrl-C and Ctrl-D end the game the same way as `quit`.
 
 ### Ending the game
 
-- **Win:** the last room's door opens (`Door.is_exit()` is `True`). The win screen shows the
-  door open and the `ending` text, and the game exits with code 0.
+- **Win:** the last room's door opens (`Door.is_exit()` is `True`). The message is
+  `win_message(moves, par)`, e.g. `Escaped in 12 moves. Par is 12. Sharp.` The win screen shows
+  the door open and the `ending` text, and the game exits with code 0.
 - **Quit:** `quit`, Ctrl-C or Ctrl-D. Exit code 0, no traceback.
-- There is no lose condition. A move limit is a stretch goal (section 11).
+- There is no lose condition. Moves are counted against par but never end the game.
 
 ---
 
@@ -318,6 +344,7 @@ without touching the default one.
 {
   "intro": "Shown in place of a result on the first screen.",
   "ending": "Shown on the win screen.",
+  "par": 12,
   "rooms": [
     {
       "id": "electrical",
@@ -335,12 +362,36 @@ without touching the default one.
           "required_item": "screwdriver",
           "closed_text": "A fuse box is screwed shut on the wall.",
           "open_text": "The fuse box hangs open.",
+          "room_text": { "power on": "The fuse box hums; a red light glows by the door." },
+          "inspect": { "closed": "Fresh scratches round every screw.",
+                       "open": "One empty socket.", "power on": "Every socket full." },
+          "uses": [
+            { "item": "fuse", "needs": { "fuse box": "open" },
+              "refusal": "The fuse box is screwed shut.",
+              "text": "You press the fuse home. The box hums.",
+              "state": "power on", "consume": true }
+          ],
           "sprite": [1, 26],
           "closeup": "art/closeups/fuse_box.txt",
-          "contents": [{ "name": "key", "description": "small and brass" }]
+          "contents": [{ "name": "key", "description": "small and brass",
+                         "inspect": "A paper tag: \"For when you wake up. V.\"" }]
+        },
+        {
+          "name": "vent",
+          "required_item": "wrench",
+          "uses": [
+            { "item": "flashbulb", "needs": { "vent": "open" }, "refusal": "Open it first.",
+              "text": "The bulb pops…", "state": "flashed", "reveal": ["fuse"],
+              "consume": true }
+          ],
+          "contents": [{ "name": "fuse", "hidden": true }]
         }
       ],
       "door": { "required_item": "key", "next_room": null, "sprite": [0, 52],
+                "needs": { "fuse box": "power on" },
+                "refusal": "The key won't turn. The electric bolt holds it.",
+                "unlock_text": "The key turns.",
+                "room_text": { "locked": "The steel door is locked." },
                 "closeup": "art/closeups/door.txt" }
     }
   ]
@@ -358,6 +409,25 @@ without touching the default one.
 - Names are what the player types, so they are written in lower case and kept short.
 - `icon` (items) and `closeup` (items, containers, the door) name picture files, relative to
   the world file like `art`. Both are optional for now: `check` warns about each one missing.
+- `par` (optional, a whole number ≥ 1): the moves a sharp player needs.
+- **States.** A container is `closed` or `open`, the door `locked`, `unlocked` or `open`. A
+  `use` can give an item or a container a **story state** (lower-case words, e.g. `power on`,
+  `flashed`), which then replaces `open` / `closed` as its state. The door has no story states.
+- `inspect` (any object): one text, or `{state: text}`; the first text is the default for a
+  state without one.
+- `room_text` (containers, the door): `{state: sentence}`, the object's sentence in the room
+  description for that state. It wins over `closed_text` / `open_text`. An open container
+  still gets "Inside: …" added; a `room_text` sentence is never followed by ", empty".
+- `uses` (any object): what happens when an item is used on it. Each rule has `item`
+  (required, except on an item's own rule, which runs for `use <item>` alone), `text`, and
+  optionally `needs` (`{object name: state}`, with a `refusal` said until they are met),
+  `state` (the object's new story state), `reveal` (names of hidden items to bring out) and
+  `consume` (the item is used up; default `false`). Using the lock's own `required_item` needs
+  no rule: it opens the container or unlocks the door.
+- `needs` and `refusal` also work on a container's or the door's lock, and the door has
+  `unlock_text` for when the key turns.
+- `hidden: true` on an item keeps it out of sight until a rule `reveal`s it.
+- `refusal` on an item: said when it is used on something that doesn't react to it.
 
 ### What the loader checks
 
@@ -372,6 +442,16 @@ without touching the default one.
 - a `required_item` names an item that doesn't exist anywhere in the world;
 - a door has no `required_item`;
 - a field has the wrong type, or the art file lacks a sprite section that `sprite` needs;
+- a name contains `on`, `in` or `with`, or `par` isn't a whole number ≥ 1;
+- a `use` names an item that doesn't exist, an object has two rules for the same item, or a
+  rule is written for the lock's own `required_item`;
+- a `needs` names an object that isn't in the room, or a state that object is never in (a
+  container's states are `closed`, `open` and every story state a rule gives it);
+- `needs` comes without a `refusal`;
+- a story `state` isn't lower-case words, is a built-in state name, or is set on the door;
+- a `reveal` names something that isn't a hidden item in that room, or a hidden item is never
+  revealed by any rule;
+- an `inspect` or `room_text` is keyed by a state the object is never in;
 - an `icon` or `closeup` names a picture that wasn't loaded, or one of the wrong size (an icon
   file used as a close-up, or the other way round).
 
@@ -380,8 +460,12 @@ exit code 1, like the room art. A missing `icon` or `closeup` is not an error: `
 one `Warning:` line per missing picture after its summary and still exits 0, because the art is
 drawn after the format (E2.4, E3.2).
 
-The loader does **not** check that the puzzle can be solved. That is covered by tests that
-play the default world from start to finish (section 11).
+The loader does **not** check that the puzzle can be solved; `check` does. After loading,
+`check` runs `solve.shortest_win`, a breadth-first search over every reachable game state
+(each `open`, `take`, `drop` and `use` the player could try). It exits 1 with
+`Error: <file>: the world can't be won` if no route wins, or
+`Error: <file>: par is P, but the shortest win takes N moves` if `par` is below the best
+route. Otherwise it prints `The shortest win takes N moves. Par is P.` after the summary.
 
 ### The art file
 
@@ -447,16 +531,19 @@ ssssssssssss
 The packaged world has one example of each: `art/icons/screwdriver.txt` and
 `art/closeups/screwdriver.txt`.
 
-### The v0.5 room
+### The Electrical Room puzzle
 
-`world.json` holds one placeholder room until the story is chosen:
+Somebody ("V.") pulled the fuse, hid it in the vent and left you locked in with the key. The
+way out, at par 12:
 
-1. `open toolbox` → `take screwdriver` (the wrench is there too).
-2. `open fuse box` is locked until you hold the screwdriver. Inside: the key and a fuse.
-3. `take key` → `open door`. **You win.**
+1. `open toolbox` → `take wrench` → `open vent` (pitch black inside).
+2. `take flashbulb` → `use flashbulb on vent`: the flash (used up) reveals the hidden fuse.
+3. `take fuse` → `take screwdriver` → `open fuse box` → `take key`.
+4. `use fuse on fuse box`: the power comes back (`power on`).
+5. `use key on door` (only with power; the key stays in the lock) → `open door`. **You win.**
 
-The flashbulb on the floor is a loose extra. The room holds five portable items, so a player
-who takes everything fills all 4 slots and is refused the fifth.
+Every item has one job, and the clues for each step are in the `inspect` texts. At most 4
+items are carried at once on the best route, so the inventory limit still bites on others.
 
 ---
 
@@ -493,22 +580,29 @@ test pure functions. `conftest.py` loads a fresh copy of the packaged world for 
   vs. a tool kept, taking from closed/open containers, the 4-item limit, items that can't be
   carried, dropping, and the three name lookups.
 - **Commands** (`test_commands.py`): case, extra spaces, a leading `the`, multi-word names,
-  aliases, empty input, an unknown verb, a missing object and an unexpected object.
+  aliases, empty input, an unknown verb, a missing object and an unexpected object, `inspect`
+  and its short forms, and `use` with and without `on` / `in` / `with`.
 - **Art** (`test_art.py`): picture frames padded to size, bad pictures rejected, the default
   frame, the example pictures' sizes; sprite placement, state swaps, a taken item disappearing, clipping,
   missing or malformed sections, transparency, and that every composed line is exactly 72 cells in
   every state of the real room.
 - **World** (`test_world.py`): pictures are found by object, missing ones are listed (scenery needs
-  no icon), the packaged world loads, and each rule in section 8 rejects a
-  small broken example.
+  no icon), the packaged world loads, each rule in section 8 rejects a
+  small broken example, every clue and result fits its rows, and the room description fits
+  3 rows at 92 columns along the par route and in every reachable state.
 - **Game** (`test_game.py`): locked container, tool kept, full inventory, drop and take back,
-  locked door, winning uses the key, unknown names, empty input and quit.
+  the door's unlock-then-open with its power `needs`, the full par route, which commands are
+  moves, the win message, inspect in every state, every kind of `use` and refusal, reveals and
+  story states, unknown names, empty input and quit.
+- **Solver** (`test_solve.py`): the packaged world is won in exactly its par, the search leaves
+  the world untouched, an unwinnable world gives `None`, and a two-room route is found.
 - **Screen** (`test_screen.py`): description and commands follow the state, the opening screen
   fits 80 × 24, every screen in a playthrough has the same height, the win screen, the prompt,
   the spotlight on the changed object, the inventory in the border and the ASCII fallback.
 - **CLI** (`test_cli.py`): a scripted win exits 0, end of input says goodbye, a missing world
-  file, invalid JSON and a bad picture file exit 1 with `Error:`, and `check` prints a summary
-  and a warning for each missing icon or close-up.
+  file, invalid JSON and a bad picture file exit 1 with `Error:`, `check` prints a summary,
+  the shortest win and a warning for each missing icon or close-up, and an unwinnable world,
+  a par below the shortest win or a broken `use` exit 1.
 
 The real terminal (layout at 80 × 24 and 120 × 40, colours, Ctrl-C/Ctrl-D, a too-small window)
 is checked by playing the real game in a terminal before each merge. Anything that can be
@@ -534,8 +628,8 @@ None of these are started until everything above works and CI is green. They are
 order of preference. Each one fits the current design without restructuring it:
 
 1. A `hint` command (a `hint` field per room in `world.json`).
-2. A move limit as a lose condition (a counter in the loop, counting valid commands).
-3. A score or rank at the end (based on moves).
+2. A move limit as a lose condition (`Player.moves` is already counted).
+3. A score or rank at the end beyond par's "Sharp." (moves and par already exist).
 4. Save and load progress to JSON (`save` and `load` commands that serialise `Player` and the
    open/closed and contents state).
 5. Combining two items into a new one (a `combine <item> with <item>` command and a `recipes`

@@ -82,8 +82,10 @@ def test_every_screen_in_a_playthrough_has_the_same_height(world: World, player:
     assert len(heights) == 1
 
 
-def test_win_screen_shows_the_ending_and_no_prompt(world: World, player: Player) -> None:
-    for line in ["open toolbox", "take screwdriver", "open fuse box", "take key", "open door"]:
+def test_win_screen_shows_the_ending_and_no_prompt(
+    world: World, player: Player, win_script: list[str]
+) -> None:
+    for line in win_script:
         play_turn(player, line)
     room = player.current_room
     assert room.door.is_open
@@ -125,13 +127,14 @@ def test_inventory_is_shown_in_the_panel_border(world: World, player: Player) ->
 
 def test_crowded_description_keeps_every_object_and_the_door(world: World, player: Player) -> None:
     script = ["open toolbox", "take screwdriver", "take wrench", "open fuse box", "take key"]
-    for line in [*script, "take fuse", "drop screwdriver", "drop wrench", "drop key", "drop fuse"]:
+    for line in [*script, "open vent", "drop screwdriver", "drop wrench", "drop key"]:
         play_turn(player, line)
     rows_ = screen_for(world, player).description
     text = " ".join(rows_)
     assert "…" not in text
-    assert "On the floor: screwdriver, wrench, key, fuse." in text
-    assert text.endswith("The door is shut tight.")
+    assert "The vent hangs open, black inside." in text  # not "empty": something hides in it
+    assert "On the floor: screwdriver, wrench, key." in text
+    assert text.endswith("The steel door is locked.")
 
 
 def test_help_never_splits_a_command_from_its_short_form(world: World, player: Player) -> None:

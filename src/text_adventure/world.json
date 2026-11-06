@@ -1,6 +1,7 @@
 {
   "intro": "The power died an hour ago. Somebody wanted you in the dark. Find a way out.",
   "ending": "Cold air rushes in. Beyond the door the city glitters under a wet night sky, and for the first time tonight you can see where you're going.",
+  "par": 12,
   "rooms": [
     {
       "id": "electrical",
@@ -12,6 +13,8 @@
           "name": "flashbulb",
           "description": "an old camera flashbulb",
           "floor_text": "A flashbulb lies in the light.",
+          "inspect": "A press flashbulb with one shot left. Not yours: somebody took pictures in here tonight. One flash would show what the lamp can't.",
+          "refusal": "You've got one flash. Save it for somewhere the lamp can't reach.",
           "sprite": [
             9,
             30
@@ -23,6 +26,7 @@
           "name": "toolbox",
           "closed_text": "A toolbox waits on the floor.",
           "open_text": "The toolbox gapes open.",
+          "inspect": "Your own toolbox, dented and familiar. Somebody went through it tonight and put everything back, almost right.",
           "sprite": [
             6,
             12
@@ -31,6 +35,7 @@
             {
               "name": "screwdriver",
               "description": "a worn flathead",
+              "inspect": "A worn flathead. The tip is just the width of the screws on the fuse box.",
               "icon": "art/icons/screwdriver.txt",
               "closeup": "art/closeups/screwdriver.txt",
               "sprite": [
@@ -45,6 +50,7 @@
             {
               "name": "wrench",
               "description": "heavy and rusted",
+              "inspect": "Heavy and rusted, the jaws set wide. Too big for anything in here but the bolts on the vent.",
               "sprite": [
                 8,
                 18
@@ -61,6 +67,26 @@
           "required_item": "screwdriver",
           "closed_text": "A fuse box is screwed shut.",
           "open_text": "The fuse box hangs open.",
+          "room_text": {
+            "power on": "The fuse box hums; a red light glows by the door."
+          },
+          "inspect": {
+            "closed": "Grey steel, four flathead screws. Fresh scratches round every one. Somebody had this open tonight.",
+            "open": "A neat row of fuses with one empty socket. Nothing blew in here. That fuse was pulled out by hand.",
+            "power on": "Every socket full. The box hums, and over by the door a small red light is awake."
+          },
+          "uses": [
+            {
+              "item": "fuse",
+              "needs": {
+                "fuse box": "open"
+              },
+              "refusal": "The fuse box is screwed shut.",
+              "text": "You press the fuse home. The box hums, the lamp steadies, and by the door a small red light wakes up.",
+              "state": "power on",
+              "consume": true
+            }
+          ],
           "sprite": [
             2,
             36
@@ -69,6 +95,7 @@
             {
               "name": "key",
               "description": "small and brass",
+              "inspect": "Small and brass, on a paper tag. In a woman's hand: \"For when you wake up. V.\"",
               "sprite": [
                 4,
                 38
@@ -77,14 +104,43 @@
                 9,
                 47
               ]
-            },
+            }
+          ]
+        },
+        {
+          "name": "vent",
+          "required_item": "wrench",
+          "room_text": {
+            "closed": "A vent sits low in the dark.",
+            "open": "The vent hangs open, black inside.",
+            "flashed": "The vent hangs open, its duct gone dark again."
+          },
+          "inspect": {
+            "closed": "A low grille held by four rusted bolts. The dust on the bolt heads has been wiped clean.",
+            "open": "The duct runs back into pitch black. The lamp can't reach in there. You'd need a flash to see.",
+            "flashed": "The flash burned the duct onto your eyes: dust, and a clean track where something was pushed in tonight."
+          },
+          "uses": [
+            {
+              "item": "flashbulb",
+              "needs": {
+                "vent": "open"
+              },
+              "refusal": "The grille is bolted shut. Get it open first.",
+              "text": "The bulb pops. For an instant the duct is white as noon, and just inside lies a fuse wrapped in silk.",
+              "state": "flashed",
+              "reveal": [
+                "fuse"
+              ],
+              "consume": true
+            }
+          ],
+          "contents": [
             {
               "name": "fuse",
-              "description": "a blown glass fuse",
-              "sprite": [
-                4,
-                43
-              ],
+              "description": "a good glass fuse",
+              "hidden": true,
+              "inspect": "A good glass fuse, wrapped in a silk handkerchief with a V stitched in the corner. Pulled, not blown.",
               "floor": [
                 8,
                 51
@@ -96,6 +152,21 @@
       "door": {
         "required_item": "key",
         "next_room": null,
+        "needs": {
+          "fuse box": "power on"
+        },
+        "refusal": "The key won't turn. The electric bolt holds it, dead as the lights.",
+        "unlock_text": "The key turns. With a hum, the electric bolt slides back.",
+        "room_text": {
+          "locked": "The steel door is locked.",
+          "unlocked": "The door is unlocked, a green light over its keyhole.",
+          "open": "The door stands open on the night."
+        },
+        "inspect": {
+          "locked": "Steel. A brass keyhole under the handle, and above it an electric bolt with a dead light. Without power, no key will move it.",
+          "unlocked": "The bolt is drawn back and a green light glows over the keyhole. Nothing holds the door now.",
+          "open": "The door stands open on a wet, glittering night."
+        },
         "sprite": [
           2,
           54

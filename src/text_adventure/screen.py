@@ -106,27 +106,32 @@ def fit(text: str, rows: int, first: str = "", rest: str = "") -> list[str]:
     return lines + [""] * (rows - len(lines))
 
 
-def _open_sentence(text: str, contents: list[str]) -> str:
-    """An open container's sentence, followed by what is inside it."""
+def _open_sentence(text: str, contents: list[str], say_empty: bool = True) -> str:
+    """An open container's sentence, followed by what is inside it, or ", empty"."""
     if contents:
         return f"{text} Inside: {', '.join(contents)}."
-    return text.removesuffix(".") + ", empty."
+    return text.removesuffix(".") + ", empty." if say_empty else text
 
 
 def object_sentences(room: Room) -> list[str]:
     """One sentence per object in its current state, then the door."""
     sentences = []
     for container in room.containers:
+        text = container.room_sentence()
         if container.is_open:
-            text = container.open_text or f"The {container.name} is open."
-            sentences.append(_open_sentence(text, [item.name for item in container.contents]))
+            names = [item.name for item in container.contents]
+            text = text or f"The {container.name} is open."
+            # Not "empty" while something hides inside, or when world.json words the state.
+            say_empty = not container.hidden and container.state not in container.room_texts
+            sentences.append(_open_sentence(text, names, say_empty))
         else:
-            sentences.append(container.closed_text or f"There is a {container.name}.")
+            sentences.append(text or f"There is a {container.name}.")
     sentences += [item.floor_text for item in room.items if item.floor_text]
     dropped = [item.name for item in room.items if not item.floor_text]
     if dropped:
         sentences.append(f"On the floor: {', '.join(dropped)}.")
-    sentences.append(DOOR_OPEN_TEXT if room.door.is_open else DOOR_CLOSED_TEXT)
+    door_text = DOOR_OPEN_TEXT if room.door.is_open else DOOR_CLOSED_TEXT
+    sentences.append(room.door.room_sentence() or door_text)
     return sentences
 
 

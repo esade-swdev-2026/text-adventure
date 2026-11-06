@@ -65,12 +65,15 @@ uv run text-adventure --help
 uv run text-adventure check src/text_adventure/world.json
 ```
 
-`check` loads a world file, checks every rule and prints a summary, then a warning for each
-item without an inventory icon and each object without a close-up (the art is still being
-drawn, so these don't fail the check):
+`check` loads a world file, checks every rule (including every `use` and what it refers to),
+searches for the shortest way to win and prints a summary, then a warning for each item
+without an inventory icon and each object without a close-up (the art is still being drawn,
+so these don't fail the check). A world that can't be won, or whose `par` is below the
+shortest win, fails with exit code 1:
 
 ```
-OK: src/text_adventure/world.json has 1 room(s), 2 containers and 5 items. The game starts in the Electrical Room.
+OK: src/text_adventure/world.json has 1 room(s), 3 containers and 5 items. The game starts in the Electrical Room.
+The shortest win takes 12 moves. Par is 12.
 Warning: item "flashbulb" has no icon.
 Warning: item "flashbulb" has no close-up.
 ...
@@ -91,14 +94,19 @@ now, and what you carry is shown under the picture.
 
 | Command | Short | What it does |
 |---|---|---|
+| `inspect <thing>` | `x`, `examine`, `look at` | Looks closely at an item, a container or the door. Clues are here. |
 | `open <thing>` | | Opens a container. Some are locked until you carry the right tool. |
-| `open door` | | Tries the door. It needs a key, which is used up. |
+| `use <item>` / `use <item> on <thing>` | `in`, `with` for `on` | Uses a carried item, e.g. `use key on door` to unlock it. |
+| `open door` | | Opens the door once it is unlocked. |
 | `take <thing>` | `get` | Picks up an item. You can carry 4. |
 | `drop <thing>` | | Puts a carried item on the floor. |
 | `look` | `l` | Redraws the room. |
 | `inventory` | `i` | Lists what you carry. |
 | `help` | `?` | Lists the commands. |
 | `quit` | `q` | Ends the game. Ctrl-C and Ctrl-D do too. |
+
+Every `open`, `take`, `drop` and `use` that changes something is a move; looking, inspecting
+and mistakes are free. Escape in par or better and the game calls it sharp.
 
 Names can be several words (`open fuse box`), and a leading "the" is ignored
 (`take the key`). Tab completes a command (`open f` → `open fuse box`), and ↑ recalls
@@ -153,6 +161,7 @@ src/text_adventure/   the package; pure modules never print or read files
   commands.py         parse typed input into a Command
   game.py             the rules: apply a Command, return an Outcome
   world.py            check world.json data and build the rooms
+  solve.py            find the shortest win, for check
   art.py              parse the art file, draw sprites for the room's state
   screen.py           build the screen as plain text (description, commands, layout)
   terminal.py         I/O: draw the screen with rich, read a line

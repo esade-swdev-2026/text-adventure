@@ -40,3 +40,36 @@ def test_take_without_object() -> None:
 def test_inventory_with_object() -> None:
     with pytest.raises(CommandError, match="doesn't take an object"):
         parse("inventory key")
+
+
+@pytest.mark.parametrize("text", ["inspect fuse box", "x the fuse box", "examine fuse box"])
+def test_inspect_and_its_short_forms(text: str) -> None:
+    assert parse(text) == Command(Verb.INSPECT, "fuse box")
+
+
+def test_look_at_means_inspect() -> None:
+    assert parse("look at the door") == Command(Verb.INSPECT, "door")
+    with pytest.raises(CommandError, match="Inspect what?"):
+        parse("look at")
+
+
+@pytest.mark.parametrize(
+    ("text", "command"),
+    [
+        ("use flashbulb", Command(Verb.USE, "flashbulb")),
+        ("use the fuse on the fuse box", Command(Verb.USE, "fuse", "fuse box")),
+        ("USE fuse  in fuse box", Command(Verb.USE, "fuse", "fuse box")),
+        ("use wrench with the vent", Command(Verb.USE, "wrench", "vent")),
+    ],
+)
+def test_use_with_and_without_a_target(text: str, command: Command) -> None:
+    assert parse(text) == command
+
+
+@pytest.mark.parametrize(
+    ("text", "message"),
+    [("use", "Use what?"), ("use on vent", "Use what?"), ("use fuse on", "Use the fuse on what?")],
+)
+def test_use_that_is_missing_a_part(text: str, message: str) -> None:
+    with pytest.raises(CommandError, match=message):
+        parse(text)

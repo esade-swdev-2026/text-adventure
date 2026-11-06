@@ -12,6 +12,7 @@ from .art import Art, ArtError, Picture, parse_art, parse_picture
 from .game import play_turn
 from .models import Inventory, Player
 from .screen import Tone, build_screen, build_win_screen
+from .solve import shortest_win
 from .terminal import Terminal
 from .world import (
     World,
@@ -83,7 +84,7 @@ def run(world: World, terminal: Terminal) -> None:
         room = player.current_room
         screen = build_screen(room, player.inventory, world.art_for(room), message, tone, focus)
         terminal.draw(screen)
-        outcome = play_turn(player, terminal.read(screen.prompt, screen.options))
+        outcome = play_turn(player, terminal.read(screen.prompt, screen.options), world.par)
         if outcome is None:
             continue
         if outcome.won:
@@ -116,13 +117,26 @@ def play(world: WorldOption = None) -> None:
 
 @app.command()
 def check(path: Annotated[Path, typer.Argument(help="World file to check.")]) -> None:
-    """Load a world file, check every rule, and print a summary and any missing art."""
+    """Load a world file, check every rule and that it can be won, and print a summary and
+    any missing art."""
     world = _load_or_exit(path)
+    route = shortest_win(world)
+    if route is None:
+        typer.echo(f"Error: {path}: the world can't be won", err=True)
+        raise typer.Exit(code=1)
+    if world.par is not None and world.par < len(route):
+        typer.echo(
+            f"Error: {path}: par is {world.par}, but the shortest win takes {len(route)} moves",
+            err=True,
+        )
+        raise typer.Exit(code=1)
     summary = summarize(world)
     typer.echo(
         f"OK: {path} has {summary.rooms} room(s), {summary.containers} containers and "
         f"{summary.items} items. The game starts in the {summary.first_room}."
     )
+    par = f" Par is {world.par}." if world.par is not None else ""
+    typer.echo(f"The shortest win takes {len(route)} moves.{par}")
     for warning in missing_pictures(world):
         typer.echo(f"Warning: {warning}.")
 
