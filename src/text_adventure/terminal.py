@@ -23,9 +23,35 @@ from .screen import (
     too_small_lines,
 )
 
-# The no-colour column of the palette in docs/SCREEN-SPEC.md §6: weight only. Bold is what
-# matters most, dim is what sits back. Colour (E4) replaces these per role.
-ROLE_STYLES: dict[Role, str] = {
+# The palette in docs/SCREEN-SPEC.md §6: 256-colour numbers, foreground only. Each one keeps at
+# least 3:1 contrast on both black and white, so it reads on dark and light themes. Coloured
+# roles are never dim, because dim on a colour can vanish on some themes.
+SLATE, AMBER, GREY, BLUE, RED = "color(60)", "color(136)", "color(243)", "color(32)", "color(160)"
+COLOR_STYLES: dict[Role, str] = {
+    Role.TITLE: "bold",
+    Role.BORDER: GREY,
+    Role.SHADOW: SLATE,
+    Role.LIT: AMBER,
+    Role.LIGHT: f"bold {AMBER}",
+    Role.NIGHT: BLUE,
+    Role.DANGER: RED,
+    Role.PLAIN: "",
+    Role.FOCUS: "bold",
+    Role.TEXT: "",
+    Role.VERB: "",
+    Role.LABEL: GREY,
+    Role.RESULT: "bold",
+    Role.ERROR: f"bold {RED}",
+    Role.WIN: f"bold {BLUE}",
+    Role.HISTORY: GREY,
+    Role.NARRATION: "italic",
+    Role.PROMPT: "bold",
+}
+
+# The no-colour column of the same table: weight only, exactly the v0.5 black-and-white
+# style. Bold is what matters most, dim is what sits back. Used where rich finds no colour
+# (output is not a terminal, or TERM=dumb).
+NO_COLOR_STYLES: dict[Role, str] = {
     Role.TITLE: "bold",
     Role.BORDER: "dim",
     Role.SHADOW: "dim",
@@ -72,6 +98,7 @@ class Terminal:
         self.margin = ""
         self.plain = not self.console.encoding.startswith("utf")
         self.screen: Screen | None = None
+        self.styles = COLOR_STYLES if self.console.color_system else NO_COLOR_STYLES
         self._reading = False
         if not self.console.is_terminal:  # piped output: draw full width, never "too small"
             self.console.width = max(self.console.width, BLOCK_WIDTH)
@@ -111,10 +138,10 @@ class Terminal:
         for line in self.screen.rows:
             text = Text(self.margin)
             for segment, role in line:
-                text.append(self._text(segment), style=ROLE_STYLES[role])
+                text.append(self._text(segment), style=self.styles[role])
             self.console.print(text, no_wrap=True, overflow="crop")
         if self.screen.footer:
-            self.say(self.screen.footer, style=ROLE_STYLES[Role.LABEL])
+            self.say(self.screen.footer, style=self.styles[Role.LABEL])
 
     def _draw_too_small(self) -> None:
         """Three lines centred both ways in whatever space there is; long lines are cut."""
@@ -125,7 +152,7 @@ class Terminal:
             self.console.print()
         for message, role in lines:
             message = self._text(message)[:width]
-            text = Text(" " * ((width - len(message)) // 2) + message, style=ROLE_STYLES[role])
+            text = Text(" " * ((width - len(message)) // 2) + message, style=self.styles[role])
             self.console.print(text, no_wrap=True, overflow="crop")
 
     def _enable_tab(self, names: list[str]) -> None:
@@ -174,7 +201,7 @@ class Terminal:
             self._reading = True
             try:
                 return self.console.input(
-                    Text(self.margin + self._text(prompt), style=ROLE_STYLES[Role.PROMPT])
+                    Text(self.margin + self._text(prompt), style=self.styles[Role.PROMPT])
                 )
             except _Resized as resized:
                 typed = resized.typed
