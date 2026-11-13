@@ -166,6 +166,19 @@ def test_inspect_follows_the_state(player: Player) -> None:
     assert fuse_box().state == "power on"
 
 
+def test_the_flashbulb_flashes_and_spotlights_the_vent(player: Player) -> None:
+    run(player, "open toolbox", "take wrench", "open vent", "take flashbulb")
+    outcome = turn(player, "use flashbulb on vent")
+    assert outcome.flash and outcome.subject == "vent"
+    assert not turn(player, "take fuse").flash  # only for that one moment
+
+
+def test_a_refused_flash_does_not_flash(player: Player) -> None:
+    run(player, "take flashbulb")
+    outcome = turn(player, "use flashbulb on vent")  # the vent is still bolted shut
+    assert outcome.error and not outcome.flash
+
+
 def test_inspect_the_door(player: Player) -> None:
     inspected = turn(player, "look at the door").inspected
     assert inspected is not None

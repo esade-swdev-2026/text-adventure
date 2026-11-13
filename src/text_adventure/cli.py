@@ -81,6 +81,7 @@ def run(world: World, terminal: Terminal) -> None:
     history = [Message(world.intro, Tone.NARRATION)] if world.intro else []
     focus: str | None = None
     inspected: Inspected | None = None
+    flash = False
     while True:
         room = player.current_room
         art = world.art_for(room)
@@ -94,9 +95,11 @@ def run(world: World, terminal: Terminal) -> None:
             focus=focus,
             inspected=inspected,
         )
+        if flash:
+            terminal.flash(screen)
         terminal.draw(screen)
         outcome = play_turn(player, terminal.read(), world.par)
-        focus, inspected = None, None  # any input, even Enter alone, returns to the room
+        focus, inspected, flash = None, None, False  # any input, even Enter, returns to the room
         if outcome is None:
             continue
         if outcome.quit:
@@ -121,7 +124,7 @@ def run(world: World, terminal: Terminal) -> None:
                 )
             )
             return
-        focus = outcome.subject
+        focus, flash = outcome.subject, outcome.flash
 
 
 def _inspected(world: World, room: Room, inspection: Inspection) -> Inspected:

@@ -273,6 +273,7 @@ def _build_use(use_json: Any, where: str, own: bool) -> Use:
         state,
         tuple(reveal),
         _get(use_json, "consume", bool, where, False),
+        _get(use_json, "flash", bool, where, False),
     )
 
 

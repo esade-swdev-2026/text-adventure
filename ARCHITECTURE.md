@@ -231,7 +231,7 @@ Dependencies only point downward. Lower layers know nothing about the layers abo
 | `Item`      | `models.py`   | Name, description, `portable` flag, `floor_text` (its sentence while on the floor), `details` (inspect texts by state), `uses`, `refusal`, and a `story` state a `use` may set (`state`). |
 | `Container` | `models.py`   | Name, open/closed, optional `required_item` (a name) with `needs` / `refusal`, `contents`, `hidden` items, `closed_text` / `open_text`, `room_texts` (its room sentence by state, `room_sentence()`), `details`, `uses`, and `state`: its story state, else `open` / `closed`. |
 | `Door`      | `models.py`   | `required_item`, `needs` / `refusal`, `unlock_text`, `room_texts`, `details`, `uses`, `next_room` (a `Room`, or `None` for the exit), `is_unlocked`, `is_open`, and `state`: `locked` / `unlocked` / `open`. |
-| `Use`       | `models.py`   | One rule from `world.json`: the `item` used (or `None` for an item's own use), `text`, `needs` and `refusal`, the new story `state`, the names to `reveal`, and whether the item is `consume`d. |
+| `Use`       | `models.py`   | One rule from `world.json`: the `item` used (or `None` for an item's own use), `text`, `needs` and `refusal`, the new story `state`, the names to `reveal`, whether the item is `consume`d and whether the screen `flash`es. |
 | `Room`      | `models.py`   | Name, mood description, containers, loose items, `hidden` loose items, one door. `remove_item` takes an item off the floor or out of an open container; `reveal(name)` brings a hidden item into sight. |
 | `Inventory` | `models.py`   | Up to `CAPACITY = 4` items. Add, find by name, count, use up, drop, list. Refuses a fifth. |
 | `Player`    | `models.py`   | `current_room`, one `Inventory` and `moves`. `take_item` and `drop_item` move items between room and inventory. |
@@ -415,7 +415,9 @@ without touching the default one.
   (required, except on an item's own rule, which runs for `use <item>` alone), `text`, and
   optionally `needs` (`{object name: state}`, with a `refusal` said until they are met),
   `state` (the object's new story state), `reveal` (names of hidden items to bring out) and
-  `consume` (the item is used up; default `false`). Using the lock's own `required_item` needs
+  `consume` (the item is used up; default `false`) and `flash` (the picture lights up white
+  for an instant before the room comes back with the object in the spotlight, as when the
+  flashbulb fires; default `false`). Using the lock's own `required_item` needs
   no rule: it opens the container or unlocks the door.
 - `needs` and `refusal` also work on a container's or the door's lock, and the door has
   `unlock_text` for when the key turns.
