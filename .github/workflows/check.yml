@@ -46,6 +46,12 @@ jobs:
       - name: Tests
         run: uv run pytest
 
+      - name: Build the image
+        run: docker build -t text-adventure .
+
+      - name: Run the image
+        run: docker run --rm text-adventure --help
+
   # The README's "Run with Docker" commands, run on every push: build the image, then load
   # a world from a folder outside the image through a read-only bind mount.
   docker:
