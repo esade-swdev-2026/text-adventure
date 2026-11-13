@@ -1,10 +1,12 @@
 import json
+import shutil
 from pathlib import Path
 from typing import Any
 
 from typer.testing import CliRunner
 
 from text_adventure.cli import app
+from text_adventure.world import art_paths, picture_paths
 
 runner = CliRunner()
 
@@ -124,3 +126,17 @@ def test_a_broken_use_is_an_error(tmp_path: Path) -> None:
     result = runner.invoke(app, ["check", str(path)])
     assert result.exit_code == 1
     assert 'there is no item "gem"' in result.output
+
+
+def test_the_world_runs_from_a_folder_outside_the_package(tmp_path: Path) -> None:
+    """The release's world.zip is world.json plus art/, mounted into Docker at /world.
+    That only works if every file the world names is a relative path inside that folder."""
+    package = Path("src/text_adventure")
+    world_json = json.loads((package / "world.json").read_text(encoding="utf-8"))
+    for relative in [*art_paths(world_json), *picture_paths(world_json)]:
+        assert not Path(relative).is_absolute() and ".." not in Path(relative).parts, relative
+    shutil.copy(package / "world.json", tmp_path / "world.json")
+    shutil.copytree(package / "art", tmp_path / "art")
+    result = runner.invoke(app, ["check", str(tmp_path / "world.json")])
+    assert result.exit_code == 0, result.output
+    assert "1 room(s), 3 containers and 5 items" in result.output

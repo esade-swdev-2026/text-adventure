@@ -93,6 +93,43 @@ Error: cannot read nope.json: No such file or directory
 exit code 1
 ```
 
+## Run with Docker
+
+Requires [Docker](https://docs.docker.com/get-docker/). From the cloned repository, build
+the image once:
+
+```
+docker build -t text-adventure .
+```
+
+The world (the story, the rooms and their art) lives **outside the image**. Download it from
+the latest release and unzip it into a folder:
+
+```
+curl -L -o world.zip https://github.com/esade-swdev-2026/text-adventure/releases/latest/download/world.zip
+unzip world.zip -d my-world
+```
+
+`my-world/` now holds `world.json` and the `art/` folder it names. Mount it into the
+container read-only (`:ro`) and play it. The game is interactive, so `play` needs `-it`:
+
+```
+docker run --rm -it -v "$PWD/my-world":/world:ro text-adventure play --world /world/world.json
+```
+
+To check the mounted world loads and can be won without playing it (no `-it` needed):
+
+```
+docker run --rm -v "$PWD/my-world":/world:ro text-adventure check /world/world.json
+```
+
+**The world changes without a rebuild.** Open `my-world/world.json`, change the room's
+`"description"`, save, and run the same `docker run ... play` command again: the game shows
+your new text. The image is the same one you built above. Only the mounted folder changed.
+
+Any folder works the same way, as long as it holds the world file and every art file the
+world names, at the relative paths it gives them.
+
 ## How to play
 
 Type a verb and a thing and press Enter. The game doesn't list what to try: the picture,
@@ -162,7 +199,13 @@ uv run pytest                # tests
 ```
 
 These four commands are exactly what `.github/workflows/check.yml` runs on every push.
-If they pass here, CI passes.
+If they pass here, CI passes. A second CI job builds the Docker image and runs `check` on a
+world mounted from outside it.
+
+To release, push a version tag (`git tag v0.7 && git push origin v0.7`).
+`.github/workflows/release.yml` packs `world.json` and `art/` into `world.zip`, checks the
+image can load it from a bind mount, and publishes a GitHub release with the zip attached.
+That is the file the "Run with Docker" section downloads.
 
 ## Layout
 
@@ -183,5 +226,6 @@ src/text_adventure/   the package; pure modules never print or read files
 tests/                pytest tests, mirroring src/
 docs/SCREEN-SPEC.md   the screen design (next version): size, layout, palette, every state
 pyproject.toml        dependencies and tool configuration — the single source of truth
+Dockerfile            the image: the package installed from uv.lock (.dockerignore: what stays out)
 ARCHITECTURE.md       full design: classes, game loop, world file, decisions
 ```

@@ -45,3 +45,21 @@ jobs:
 
       - name: Tests
         run: uv run pytest
+
+  # The README's "Run with Docker" commands, run on every push: build the image, then load
+  # a world from a folder outside the image through a read-only bind mount.
+  docker:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v7
+
+      - name: Build the image
+        run: docker build -t text-adventure .
+
+      - name: Check a world mounted from outside the image
+        run: |
+          mkdir my-world
+          cp -r src/text_adventure/world.json src/text_adventure/art my-world/
+          docker run --rm -v "$PWD/my-world":/world:ro text-adventure check /world/world.json
