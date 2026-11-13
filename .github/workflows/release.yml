@@ -1,0 +1,37 @@
+# Runs when a version tag (v0.7, v1.0, ...) is pushed. It packs the built-in world into
+# world.zip (world.json plus the art/ folder it names), proves the Docker image can load
+# that zip from a bind mount, exactly as the README's "Run with Docker" section does, and
+# only then publishes a GitHub release with world.zip attached.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write # needed to create the release and upload world.zip
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v7
+
+      - name: Pack the world into world.zip
+        working-directory: src/text_adventure
+        run: zip -r "$GITHUB_WORKSPACE/world.zip" world.json art
+
+      - name: Build the image
+        run: docker build -t text-adventure .
+
+      - name: Check the zipped world from a bind mount, as the README does
+        run: |
+          unzip world.zip -d my-world
+          docker run --rm -v "$PWD/my-world":/world:ro text-adventure check /world/world.json
+
+      - name: Publish the release with world.zip attached
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" world.zip --title "$GITHUB_REF_NAME" --generate-notes

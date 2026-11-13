@@ -1,0 +1,19 @@
+# The image needs only pyproject.toml, uv.lock, README.md and src/. Everything else stays
+# out, so the build is fast and nothing local or private ends up inside the image.
+.git/
+.github/
+.venv/
+**/__pycache__/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.claude/
+CLAUDE.md
+PLAN-*.md
+*.pdf
+.DS_Store
+tests/
+docs/
+dist/
+world.zip
+my-world/
