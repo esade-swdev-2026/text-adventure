@@ -315,9 +315,11 @@ short, the screen is a 96 × 29 block (100 × 30 minimum terminal), redrawn afte
    carried item's icon and name. The game no longer lists commands to try.
 4. **History.** The last results (`»` result, `✗` error, `✓` win), newest at the bottom.
 
-The style is noir, black and white for now (colour is E4): the art's `[light]` map decides
-what is lit (normal) and what is in shadow (dim), and the object the last command changed is
-drawn bold for one turn. Smaller windows get a centred request to resize, and the screen
+The style is noir in 256 colours (docs/SCREEN-SPEC.md §6): the art's `[light]` map decides
+what is lit (warm amber) and what is in shadow (slate blue), borders and labels are grey,
+errors red and the win blue, and the object the last command changed is drawn bold for one
+turn. `terminal.py` holds two style tables, `COLOR_STYLES` and `NO_COLOR_STYLES`; the second
+is the black-and-white fallback (lit normal, shadow dim) used when rich finds no colour. Smaller windows get a centred request to resize, and the screen
 redraws as soon as the window changes size.
 
 `look` stays as a command: it redraws the screen.

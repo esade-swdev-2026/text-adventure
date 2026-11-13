@@ -119,8 +119,10 @@ Names can be several words (`open fuse box`), and a leading "the" is ignored
 (`take the key`). Tab completes a verb, then the name of something you can see or carry
 (`open f` → `open fuse box`), and ↑ recalls earlier ones.
 
-**Terminal support:** needs a UTF-8 terminal of at least 100 × 30. The game is black and white by
-design (bold and dim only), so it looks the same in light and dark themes. A terminal that can't show UTF-8 gets plain ASCII art. If you
+**Terminal support:** needs a UTF-8 terminal of at least 100 × 30. The game uses 256 colours
+(slate shadow, amber lamplight, red for mistakes), picked to read on both light and dark
+themes; bold and dim carry the same meaning, so piped output and `TERM=dumb` get a black
+and white version. A terminal that can't show UTF-8 gets plain ASCII art. If you
 resize the window, the screen is redrawn at once; below 100 × 30 it asks for a bigger
 window. What you had typed is kept with GNU readline (most Linux builds) and lost with
 libedit (the macOS default).

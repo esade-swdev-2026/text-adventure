@@ -8,8 +8,9 @@ be checked in code, a test checks it (section 12).
 
 > **Status.** The main screen (section 3), the inspect view's drawing (section 4), the room
 > art (section 5), the too-small screen and redraw on resize (section 10) and the picture
-> format (section 7) are built (E0, E2). Colour (E4), the `inspect` and `use` verbs and moves
-> (E1), close-up art (E3) and the intro and ending screens (E6) are not yet.
+> format (section 7) are built (E0, E2), and so are the `inspect` and `use` verbs and moves
+> (E1) and the colour palette (section 6, E4.1 and E4.2). The colour-off switch (E4.3),
+> close-up art (E3) and the intro and ending screens (E6) are not yet.
 
 Rows and columns are counted from 1, inside the **screen block** (section 2), top-left first.
 
@@ -578,5 +579,7 @@ To add with E2 / E4 (each replaces its v0.5 counterpart):
 | History keeps the newest at the bottom, at most 3 rows | `test_screen.py` |
 | Tab never offers an item inside a closed container | `test_screen.py` |
 | Move counter text and position in the border | `test_screen.py` |
-| Every role has a colour and a no-colour style; `NO_COLOR` and `--no-color` give the fallback | `test_terminal.py` |
+| Every role has a colour and a no-colour style; colours are the palette's, never dim, same weight as the fallback | `test_terminal.py` |
+| Colour prints as 256-colour codes, never truecolor; piped output has no colour | `test_terminal.py` |
+| `NO_COLOR` and `--no-color` give the fallback | `test_terminal.py` (E4.3) |
 | The real screen at 100 × 30 and 140 × 40, too small, resize | pilotty, before each merge |
