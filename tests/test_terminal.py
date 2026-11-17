@@ -1,13 +1,27 @@
 from io import StringIO
 
+from rich.color import Color
 from rich.console import Console
 from rich.style import Style
 
 from text_adventure.screen import BLOCK_WIDTH, Role
 from text_adventure.terminal import COLOR_STYLES, NO_COLOR_STYLES, Terminal
 
-# The 256-colour numbers docs/SCREEN-SPEC.md §6 allows: slate, amber, grey, blue, red.
-PALETTE = {60, 136, 243, 32, 160}
+# The 256-colour numbers docs/SCREEN-SPEC.md §6 allows: the light scale (slate, mauve, amber,
+# gold, pale gold), grey, blue and red.
+PALETTE = {60, 96, 136, 178, 221, 243, 32, 160}
+
+
+def _contrast_on_black(number: int) -> float:
+    """WCAG contrast ratio of a 256-colour number against pure black."""
+
+    def channel(value: int) -> float:
+        value_01 = value / 255
+        return value_01 / 12.92 if value_01 <= 0.03928 else ((value_01 + 0.055) / 1.055) ** 2.4
+
+    red, green, blue = Color.from_ansi(number).get_truecolor()
+    luminance = 0.2126 * channel(red) + 0.7152 * channel(green) + 0.0722 * channel(blue)
+    return (luminance + 0.05) / 0.05
 
 
 def _colour_console() -> Console:
@@ -27,6 +41,12 @@ def test_colours_come_from_the_palette_and_are_never_dim() -> None:
         assert parsed.bgcolor is None, role  # foreground only
         if parsed.color is not None:
             assert parsed.color.number in PALETTE, role
+
+
+def test_every_palette_colour_reads_on_black() -> None:
+    # Dark themes only (docs/SCREEN-SPEC.md §6): at least 3:1 against pure black.
+    for number in PALETTE:
+        assert _contrast_on_black(number) >= 3, number
 
 
 def test_colour_keeps_the_weight_of_the_fallback() -> None:

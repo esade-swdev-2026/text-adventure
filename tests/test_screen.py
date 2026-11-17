@@ -1,7 +1,7 @@
 import pytest
 from rich.cells import cell_len
 
-from text_adventure.art import ART_HEIGHT, ICON, parse_art, parse_picture
+from text_adventure.art import ART_HEIGHT, ICON, RAMP, Frame, parse_art, parse_picture
 from text_adventure.game import play_turn
 from text_adventure.models import Container, Door, Inventory, Item, Player, Room
 from text_adventure.screen import (
@@ -10,6 +10,7 @@ from text_adventure.screen import (
     DESCRIPTION_ROW,
     FIRST_HINT,
     HISTORY_ROW,
+    PANEL_HEIGHT,
     PANELS_ROW,
     Inspected,
     Message,
@@ -21,8 +22,10 @@ from text_adventure.screen import (
     complete,
     describe_room,
     flash_screen,
+    frame_lines,
     history_rows,
     line_text,
+    room_picture,
     slot,
     to_ascii,
     too_small_lines,
@@ -163,11 +166,15 @@ def test_verb_panel_is_the_same_in_every_state_and_names_no_object(
     panels = set()
     for line in PLAYTHROUGH:
         play_turn(player, line)
-        panel = tuple(row[:32] for row in rows(screen_for(world, player))[PANELS_ROW:][:6])
+        panel = tuple(
+            row[:32] for row in rows(screen_for(world, player))[PANELS_ROW:][:PANEL_HEIGHT]
+        )
         panels.add(panel)
     (panel,) = panels
+    assert len(panel) == PANEL_HEIGHT == 7
     assert panel[1] == "│ Look    l     Inspect x      │"
     assert panel[4] == "│ Help    ?     Quit    q      │"
+    assert panel[5] == "│" + " " * 30 + "│"  # blank, as tall as the slots
     assert not any(name in row.lower() for row in panel for name in names)
 
 
@@ -175,29 +182,30 @@ def test_slots_show_icon_and_name_and_empty_slots_are_empty_frames(
     world: World, player: Player
 ) -> None:
     play_turn(player, "take flashbulb")
-    panel = rows(screen_for(world, player))[PANELS_ROW : PANELS_ROW + 6]
+    panel = rows(screen_for(world, player))[PANELS_ROW : PANELS_ROW + PANEL_HEIGHT]
     first = [row[34:48] for row in panel]
+    icon = world.icon_for("flashbulb")
+    assert icon is not None
     assert first == [
         "╭────────────╮",
-        "│    ▗▆▆▖    │",
-        "│    ▐██▌    │",
-        "│     ╨╨     │",
+        *(f"│ {row} │" for row in icon.frame().rows),  # 10 × 4, one cell of padding
         "│ flashbulb  │",  # odd space goes right
         "╰────────────╯",
     ]
     for start in (50, 66, 82):
         empty = [row[start : start + 14] for row in panel]
-        assert empty[1:5] == ["│            │"] * 4
+        assert empty[1:6] == ["│            │"] * 5
 
 
 def test_slot_without_an_icon_shows_only_the_name_and_long_names_are_cut() -> None:
-    assert [line_text(row) for row in slot("rope")][1:5] == [
+    assert [line_text(row) for row in slot("rope")][1:6] == [
+        "│            │",
         "│            │",
         "│            │",
         "│            │",
         "│    rope    │",
     ]
-    assert line_text(slot("a very long rope name")[4]) == "│a very long…│"
+    assert line_text(slot("a very long rope name")[5]) == "│a very long…│"
 
 
 def test_every_portable_item_has_an_icon(world: World) -> None:
@@ -309,7 +317,7 @@ def test_inspect_view_shows_the_close_up_name_hint_and_description(
     )
     lines = rows(screen)
     assert " SCREWDRIVER " in lines[0] and lines[0].endswith(" 3 moves ─╮")
-    assert lines[12].startswith("╰─ Enter returns to the room ─")
+    assert lines[ART_HEIGHT + 1].startswith("╰─ Enter returns to the room ─")
     assert "▗▄▄▄▄" in lines[4]  # the close-up, not the room
     assert lines[DESCRIPTION_ROW].startswith("  A worn flathead. The tip is just the width")
     assert lines[-1] == "  [Electrical Room] > "  # the room is still where you are
@@ -322,8 +330,8 @@ def test_inspecting_without_a_close_up_keeps_the_room_with_the_thing_in_the_spot
     screen = screen_for(world, player, inspected=inspect(world, player, "toolbox"))
     lines = rows(screen)
     assert " TOOLBOX " in lines[0]
-    assert lines[1:12] == room_rows[1:12]  # the room picture stays
-    assert lines[12].startswith("╰─ Enter returns to the room ─")
+    assert lines[1 : ART_HEIGHT + 1] == room_rows[1 : ART_HEIGHT + 1]  # the room picture stays
+    assert lines[ART_HEIGHT + 1].startswith("╰─ Enter returns to the room ─")
     assert lines[DESCRIPTION_ROW].startswith("  Your own toolbox, dented and familiar.")
     lit = roles_of(screen, Role.FOCUS)
     assert "╔═════════╗" in lit
@@ -409,7 +417,70 @@ def test_too_small_screen_names_both_sizes() -> None:
     lines = [text for text, _ in too_small_lines(80, 24)]
     assert lines == [
         "Make the window bigger",
-        "The game needs 100 × 30. It is now 80 × 24.",
+        "The game needs 100 × 44. It is now 80 × 24.",
         "It redraws as soon as it fits.",
     ]
     assert [role for _, role in too_small_lines(80, 24)] == [Role.TITLE, Role.TEXT, Role.LABEL]
+
+
+# Drawing cells as line art or tone (docs/SCREEN-SPEC.md §5.1, §6)
+
+LIT_ROOM = """\
+[background]
+|   *  *
+[shade]
+ 9999999
+[light]
+99999nrf
+"""
+
+
+def lit_room() -> tuple[Room, list[list[tuple[str, Role]]]]:
+    room = Room("Lab", "", Door(None))
+    picture = room_picture(parse_art(LIT_ROOM), room)
+    return room, [[(char, role) for text, role in line for char in text] for line in picture]
+
+
+def test_blank_cells_become_tone_and_drawn_cells_stay_as_drawn() -> None:
+    _, cells = lit_room()
+    row = "".join(char for char, _ in cells[0])
+    assert row[0] == "|" and row[4] == "*" and row[7] == "*"
+    assert set(row[1:4]) == {"█"}  # shade 9 under light 9
+    assert set("".join(char for line in cells for char, _ in line)) <= set(RAMP) | set("|*")
+
+
+def test_the_light_level_picks_the_role_and_letters_fix_it() -> None:
+    art = parse_art("[background]\n" + "x" * 10 + "\n[light]\n0123456789\n")
+    picture = room_picture(art, Room("Lab", "", Door(None)))
+    roles = [role for text, role in picture[0] for _ in text][:10]
+    assert roles == [Role.SHADOW] * 3 + [Role.DUSK] * 2 + [Role.LIT] * 3 + [Role.GLOW] * 2
+    _, cells = lit_room()
+    assert [role for _, role in cells[0][5:8]] == [Role.NIGHT, Role.DANGER, Role.PLAIN]
+
+
+def test_only_line_art_light_sources_in_the_light_are_bold_light() -> None:
+    _, cells = lit_room()
+    assert cells[0][4] == ("*", Role.LIGHT)  # a drawn light source at light 9
+    assert all(role is Role.GLOW for _, role in cells[0][1:4])  # tone █ never is LIGHT
+    dark = room_picture(parse_art("[background]\n*\n[light]\n4\n"), Room("Lab", "", Door(None)))
+    assert dark[0][0] == ("*", Role.DUSK)
+
+
+def test_the_room_drawing_never_changes_between_draws(world: World, player: Player) -> None:
+    room = player.current_room
+    art = world.art_for(room)
+    assert room_picture(art, room) == room_picture(art, room)
+
+
+def test_the_flash_draws_the_room_at_full_light() -> None:
+    art = parse_art("[background]\n  \n[shade]\n99\n[light]\n00\n")
+    room = Room("Lab", "", Door(None))
+    assert line_text(room_picture(art, room)[0]).startswith("  ")  # dark: black
+    assert line_text(room_picture(art, room, full_light=True)[0]).startswith("██")
+
+
+def test_picture_blanks_with_shade_become_tone_and_colour_digits_are_light_levels() -> None:
+    frame = Frame(("x  ",), ("923",), ("099",))
+    (line,) = frame_lines(frame)
+    assert line_text(line) == "x██"
+    assert [role for text, role in line for _ in text] == [Role.GLOW, Role.SHADOW, Role.DUSK]

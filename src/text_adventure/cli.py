@@ -1,6 +1,7 @@
 """Command-line entry point. Reads the world files and runs the game loop."""
 
 import json
+from functools import partial
 from importlib.resources import files
 from importlib.resources.abc import Traversable
 from pathlib import Path
@@ -85,7 +86,8 @@ def run(world: World, terminal: Terminal) -> None:
     while True:
         room = player.current_room
         art = world.art_for(room)
-        screen = build_screen(
+        screen = partial(
+            build_screen,
             room,
             player.inventory,
             art,
@@ -96,8 +98,8 @@ def run(world: World, terminal: Terminal) -> None:
             inspected=inspected,
         )
         if flash:
-            terminal.flash(screen)
-        terminal.draw(screen)
+            terminal.flash(screen(flash=True))
+        terminal.draw(screen())
         outcome = play_turn(player, terminal.read(), world.par)
         focus, inspected, flash = None, None, False  # any input, even Enter, returns to the room
         if outcome is None:

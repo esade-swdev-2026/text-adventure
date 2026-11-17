@@ -10,10 +10,12 @@ art). Where a rule can be checked in code, a test checks it (section 12).
 > format, the too-small screen and redraw on resize (E0, E2), the `inspect` and `use` verbs and
 > moves (E1), the colour palette (E4.1, E4.2) and the flashbulb flash (E5.2).
 >
-> **This version describes the tonal art redesign (E7), which is not built yet.** It changes
-> the picture to 92 × 24 drawn in line art plus `░▒▓█` shading, the screen to 96 × 43, the
-> icons to 10 × 4 and the palette to a graded light scale, and drops light-theme support. Until
-> E7.2 lands the game still draws the 92 × 11 picture of the previous version. Also not built:
+> **This version describes the tonal art redesign (E7).** It changes the picture to 92 × 24
+> drawn in line art plus `░▒▓█` shading, the screen to 96 × 43, the icons to 10 × 4 and the
+> palette to a graded light scale, and drops light-theme support. The engine is built
+> (E7.2): sizes, tone, light levels, light maps by state and the graded roles. The room art
+> (E7.3), the close-up and the icons (E7.4) are still the old drawings, padded into the new
+> sizes. Also not built:
 > power-on lighting (E5.1), lamp flicker (E5.3), the colour-off switch (E4.3), close-up art
 > (E3) and the intro and ending screens (E6).
 

@@ -3,17 +3,23 @@ from rich.cells import cell_len
 
 from text_adventure.art import (
     ART_HEIGHT,
+    BLACK,
     CLOSEUP,
     ICON,
+    RAMP,
     SCREEN_WIDTH,
     Art,
     ArtError,
     Box,
     Position,
     compose,
+    compose_shade,
     floor_key,
+    level,
+    light_for,
     parse_art,
     parse_picture,
+    tone,
 )
 from text_adventure.game import play_turn
 from text_adventure.models import Container, Door, Inventory, Item, Player, Room
@@ -142,8 +148,8 @@ def test_picture_frames_are_padded_to_their_full_size() -> None:
     frame = parse_picture(PICTURE, ICON).frame("closed")
     assert len(frame.rows) == len(frame.colors) == ICON.height
     assert all(cell_len(row) == ICON.width for row in frame.rows + frame.colors)
-    assert frame.rows[0] == "[#]     "
-    assert frame.colors[0] == ".#.     "
+    assert frame.rows[0] == "[#]       "
+    assert frame.colors[0] == ".#.       "
 
 
 def test_a_frame_without_a_colour_map_is_all_shadow() -> None:
@@ -158,8 +164,8 @@ def test_an_unknown_state_falls_back_to_the_first_frame() -> None:
 @pytest.mark.parametrize(
     ("text", "message"),
     [
-        ("[default]\n123456789\n", "must fit in 8x3"),
-        ("[default]\n1\n2\n3\n4\n", "must fit in 8x3"),
+        ("[default]\n12345678901\n", "must fit in 10x4"),
+        ("[default]\n1\n2\n3\n4\n5\n", "must fit in 10x4"),
         ("[default]\nab\n[default:colors]\nxz\n", "not a colour"),
         ("[open:colors]\n##\n", r"no \[open\] frame"),
         ("", r"no \[state\] frame"),
@@ -212,7 +218,7 @@ def test_room_shows_every_object_and_each_state_changes_visibly(
 ) -> None:
     room = player.current_room
     art = world.art_for(room)
-    assert len(art.background) == ART_HEIGHT == 11
+    assert len(art.background) == ART_HEIGHT == 24
     assert all(cell_len(row) == SCREEN_WIDTH == 92 for row in art.background)
     start = "\n".join(compose(art, room))
     for sprite in ["toolbox:closed", "fuse box:closed", "vent:closed", "flashbulb", "door:locked"]:
@@ -232,3 +238,150 @@ def test_room_shows_every_object_and_each_state_changes_visibly(
             assert compose(art, room)[place.row][place.column] == "▯"  # the fuse is revealed
     for state in ["vent:open", "vent:flashed", "fuse box:power on"]:
         assert state in art.sprites, state
+
+
+# Tone (docs/SCREEN-SPEC.md §5.1)
+
+
+def test_tone_is_black_below_the_threshold_and_a_ramp_character_above() -> None:
+    assert tone(0, 9, 0, 0) == tone(9, 0, 0, 0) == " "
+    assert all(tone(2, 9, row, column) == " " for row in range(4) for column in range(4))
+    assert 2 * 9 / 81 < BLACK <= 3 * 9 / 81
+    assert all(tone(9, 9, row, column) == "█" for row in range(4) for column in range(4))
+    for shade in range(3, 10):
+        for row in range(4):
+            for column in range(4):
+                assert tone(shade, 9, row, column) in RAMP[1:], (shade, row, column)
+
+
+def test_tone_dithers_by_position_and_never_changes_between_calls() -> None:
+    cells = [tone(5, 9, row, column) for row in range(4) for column in range(4)]
+    assert len(set(cells)) == 2  # a mid tone mixes two neighbouring ramp characters
+    assert cells == [tone(5, 9, row, column) for row in range(4) for column in range(4)]
+    assert tone(5, 9, 0, 0) == tone(5, 9, 4, 4)  # the 4 × 4 pattern repeats
+
+
+def test_tone_gets_denser_as_the_light_grows() -> None:
+    def ink(light: int) -> int:
+        return sum(RAMP.index(tone(9, light, r, c)) for r in range(4) for c in range(4))
+
+    assert [ink(light) for light in range(10)] == sorted(ink(light) for light in range(10))
+
+
+def test_level_reads_digits_blanks_and_letters() -> None:
+    assert [level(c) for c in "0 79n*"] == [0, 0, 7, 9, 9, 9]
+
+
+# Shade and light maps (docs/SCREEN-SPEC.md §5.2)
+
+TONED = """\
+[background]
+|..
+[shade]
+9 5
+[light]
+8*
+[light:open]
+2
+[box:closed]
+( )
+[box:open]
+(x)
+[box:open:shade]
+ 4
+"""
+
+
+def test_shade_and_light_maps_are_padded_with_zeros() -> None:
+    art = parse_art(TONED)
+    assert len(art.shade) == len(art.light) == ART_HEIGHT
+    assert art.shade[0] == "905" + "0" * (SCREEN_WIDTH - 3)
+    assert art.light[0] == "8*" + "0" * (SCREEN_WIDTH - 2)
+    assert art.shade[1] == art.light[1] == "0" * SCREEN_WIDTH
+
+
+def test_a_room_without_light_or_shade_is_evenly_lit_and_black() -> None:
+    art = parse_art("[background]\n.\n")
+    assert set("".join(art.light)) == {"6"}
+    assert set("".join(art.shade)) == {"0"}
+
+
+@pytest.mark.parametrize(
+    ("text", "message"),
+    [
+        ("[background]\n.\n[shade]\n5a\n", "not a digit"),
+        ("[background]\n.\n[shade]\n*\n", "not a digit"),
+        ("[background]\n.\n[light]\n5#\n", "not a light level"),
+        ("[background]\n.\n[light:power on]\nx\n", "not a light level"),
+        ("[background]\n.\n[shade]\n" + "1" * 93 + "\n", "must fit in 92x24"),
+        ("[background]\n.\n[light]\n" + "1\n" * 25, "must fit in 92x24"),
+        ("[background]\n.\n[box:shade]\n1\n", r"no \[box\] sprite"),
+        ("[background]\n.\n[box]\nab\n[box:shade]\n123\n", "must fit in its sprite"),
+        ("[background]\n.\n[box]\nab\n[box:shade]\nx\n", "not a digit"),
+    ],
+)
+def test_broken_shade_or_light_raises(text: str, message: str) -> None:
+    with pytest.raises(ArtError, match=message):
+        parse_art(text)
+
+
+def test_a_sprite_brings_its_own_shade_and_black_where_it_has_none() -> None:
+    art = parse_art(TONED)
+    art = Art(art.background, art.sprites, {"box": Position(0, 0)}, art.light, art.shade,
+              art.lights, art.sprite_shades)  # fmt: skip
+    room = Room("Lab", "", Door(None), [Container("box")])
+    assert compose_shade(art, room)[0][:4] == "0000"  # closed: no shade map, all black inside
+    room.containers[0].open(Inventory())
+    assert compose_shade(art, room)[0][:4] == "0400"  # open: its own map; outside untouched
+
+
+def test_a_state_light_map_replaces_the_light_while_an_object_is_in_that_state() -> None:
+    art = parse_art(TONED)
+    room = Room("Lab", "", Door(None), [Container("box")])
+    assert light_for(art, room) == art.light
+    room.containers[0].open(Inventory())
+    assert light_for(art, room) == art.lights["open"]
+
+
+def test_the_fuse_box_powering_on_would_switch_a_power_on_light_map(
+    world: World, player: Player, win_script: list[str]
+) -> None:
+    room = player.current_room
+    art = world.art_for(room)
+    lit = Art(art.background, art.sprites, art.placements, art.light, art.shade,
+              {"power on": ("9" * SCREEN_WIDTH,) * ART_HEIGHT})  # fmt: skip
+    for line in win_script:
+        before = light_for(lit, room)
+        play_turn(player, line)
+        if light_for(lit, room) != before:
+            assert line.startswith("use fuse"), line
+            break
+    assert light_for(lit, room) == lit.lights["power on"]
+
+
+# Picture shade maps (docs/SCREEN-SPEC.md §7.1)
+
+
+def test_a_picture_shade_map_is_digits_padded_to_size() -> None:
+    frame = parse_picture("[default]\n( )\n[default:shade]\n 7\n", ICON).frame()
+    assert frame.shade[0] == "07" + "0" * (ICON.width - 2)
+    assert len(frame.shade) == ICON.height
+    assert parse_picture("[default]\nx\n", ICON).frame().shade == ()
+
+
+@pytest.mark.parametrize(
+    ("text", "message"),
+    [
+        ("[default]\nab\n[default:shade]\n1x\n", "not a digit"),
+        ("[open:shade]\n11\n", r"no \[open\] frame"),
+        ("[default]\nab\n[default:shade]\n12345678901\n", "must fit in 10x4"),
+    ],
+)
+def test_broken_picture_shade_raises(text: str, message: str) -> None:
+    with pytest.raises(ArtError, match=message):
+        parse_picture(text, ICON)
+
+
+def test_colour_maps_accept_light_levels() -> None:
+    frame = parse_picture("[default]\nab\n[default:colors]\n09\n", ICON).frame()
+    assert frame.colors[0].startswith("09")

@@ -87,9 +87,9 @@ def test_check_loads_pictures_next_to_the_world_file(tmp_path: Path) -> None:
 
 
 def test_picture_too_big_is_an_error(tmp_path: Path) -> None:
-    result = runner.invoke(app, ["check", str(write_world(tmp_path, "[default]\n123456789\n"))])
+    result = runner.invoke(app, ["check", str(write_world(tmp_path, "[default]\n12345678901\n"))])
     assert result.exit_code == 1
-    assert "Error:" in result.output and "coin.txt: [default] must fit in 8x3" in result.output
+    assert "Error:" in result.output and "coin.txt: [default] must fit in 10x4" in result.output
 
 
 def test_missing_picture_file_is_an_error(tmp_path: Path) -> None:

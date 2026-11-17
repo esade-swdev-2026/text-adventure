@@ -238,9 +238,9 @@ Dependencies only point downward. Lower layers know nothing about the layers abo
 | `Verb`, `Command` | `commands.py` | The nine verbs and one parsed command (`target` is the thing a `use` is aimed at). |
 | `Outcome`   | `game.py`     | What one command did: the message, whether it was an error, a win or a quit, the object it changed (`subject`), whether it was a move (`moved`), and what was inspected. |
 | `Inspection` | `game.py`    | What `inspect` looked at: `name`, `kind` (`item` / `container` / `door`), `state` (picks the close-up frame) and `text`. |
-| `Art`       | `art.py`      | Background rows, named sprites, and where each object's sprite goes.     |
+| `Art`       | `art.py`      | Background rows, named sprites, where each object's sprite goes, the `[shade]` and `[light]` maps, light maps by object state, and sprites' own shade maps. |
 | `Position`, `Box`, `DrawnObject` | `art.py` | A cell (row, column); the rectangle a sprite covers, used for the spotlight; one object drawn right now (name, sprite section, position). |
-| `Picture`, `Frame`, `PictureSize` | `art.py` | An icon or close-up: one `Frame` (rows plus a colour letter per cell) per state, at a fixed `PictureSize` (`ICON` 8 × 3, `CLOSEUP` 92 × 11). |
+| `Picture`, `Frame`, `PictureSize` | `art.py` | An icon or close-up: one `Frame` (rows, a colour letter per cell, and an optional shade digit per cell) per state, at a fixed `PictureSize` (`ICON` 10 × 4, `CLOSEUP` 92 × 24). |
 | `World`     | `world.py`    | The first room, intro, ending, each room's art, and the icons and close-ups (`icon_for`, `closeup_for`). |
 | `Message`, `Inspected`, `Screen` | `screen.py` | One history entry (text and tone); the thing in the inspect view (name, text, close-up, state); every row of one screen tagged with roles, the prompt and the names Tab offers. |
 
@@ -304,9 +304,9 @@ are. Ctrl-C and Ctrl-D end the game the same way as `quit`.
 ## 7. The screen
 
 The full spec, with a mock of every state, is [docs/SCREEN-SPEC.md](docs/SCREEN-SPEC.md). In
-short, the screen is a 96 × 29 block (100 × 30 minimum terminal), redrawn after every command:
+short, the screen is a 96 × 43 block (100 × 44 minimum terminal), redrawn after every command:
 
-1. **Room panel.** A 92 × 11 picture: sprites placed on a background, one sprite per object
+1. **Room panel.** A 92 × 24 picture: sprites placed on a background, one sprite per object
    state (toolbox closed or open, the fuse box closed, open or powered, the vent closed, open
    or flashed, the door locked, unlocked or open, a floor item only while it lies there). The room name is in the top border, the move counter in its
    corner. While inspecting, the thing's close-up replaces the picture.
@@ -315,11 +315,17 @@ short, the screen is a 96 × 29 block (100 × 30 minimum terminal), redrawn afte
    carried item's icon and name. The game no longer lists commands to try.
 4. **History.** The last results (`»` result, `✗` error, `✓` win), newest at the bottom.
 
-The style is noir in 256 colours (docs/SCREEN-SPEC.md §6): the art's `[light]` map decides
-what is lit (warm amber) and what is in shadow (slate blue), borders and labels are grey,
-errors red and the win blue, and the object the last command changed is drawn bold for one
-turn. `terminal.py` holds two style tables, `COLOR_STYLES` and `NO_COLOR_STYLES`; the second
-is the black-and-white fallback (lit normal, shadow dim) used when rich finds no colour. Smaller windows get a centred request to resize, and the screen
+The style is noir in 256 colours, for dark themes (docs/SCREEN-SPEC.md §5, §6). Each picture
+cell is either **line art** (a character from the background or a sprite, drawn as is) or
+**tone** (a blank, drawn from its shade digit times its light level as one of ` ░▒▓█`, with a
+fixed Bayer dither and true black below a threshold). `art.tone` is that rule; `art.compose`
+and `art.compose_shade` lay the sprites' characters and shade over the room's, and
+`art.light_for` picks `[light]` or a light map for an object's state. The light level also
+picks the role: SHADOW, DUSK, LIT or GLOW, from slate to gold, with light sources bold.
+Borders and labels are grey, errors red and the win blue, and the object the last command
+changed is drawn bold for one turn. `terminal.py` holds two style tables, `COLOR_STYLES` and
+`NO_COLOR_STYLES`; the second is the black-and-white fallback (lit normal, shadow dim) used
+when rich finds no colour. Smaller windows get a centred request to resize, and the screen
 redraws as soon as the window changes size.
 
 `look` stays as a command: it redraws the screen.
@@ -485,9 +491,14 @@ Plain UTF-8 text, split into sections by a `[name]` line:
  ╨
 ```
 
-- `[background]` is required and must fit 72 × 10 cells. `[light]` is optional and the same
-  size: `#` where light falls, anything else is shadow (no `[light]` means all lit). It is padded with spaces to exactly
-  that size.
+- `[background]` is required and must fit 92 × 24 cells; it holds the line art, and its
+  blanks are drawn as tone. `[shade]` (digits `0`–`9`, how much light a surface gives back)
+  and `[light]` (digits `0`–`9`, how much light falls there, or a colour letter `n` `r` `f`
+  `*`) are optional and the same size; missing cells count as `0`. No `[shade]` means every
+  blank is black; no `[light]` means everything is lit evenly at level 6.
+- `[light:<state>]` replaces `[light]` while any object in the room is in that state, e.g.
+  `[light:power on]`. A sprite can have its own shade map, `[name:<state>:shade]`, for the
+  blanks inside its outline (black without one).
 - A container or the door needs `[name:closed]` and `[name:open]`. An item needs `[name]`; it
   is drawn inside its open container, or on the floor.
 - Spaces before and after each sprite row's outline are transparent, so the background shows
@@ -519,8 +530,11 @@ ssssssssssss
 - Each `[state]` section is a frame. The first frame is the default, used when the object's
   state (`closed`, `open`, `locked`, `power on`…) has no frame of its own.
 - `[state:colors]` is optional: one letter per cell, ` ` `.` `s` shadow, `#` lit, `*` light
-  source, `n` night, `r` danger, `f` plain. A missing map means all shadow.
-- An icon must fit in 8 × 3 cells, a close-up in 92 × 11. Both are padded to exactly that size.
+  source, `n` night, `r` danger, `f` plain, or a light level `0`–`9` on the room's scale. A
+  missing map means all shadow.
+- `[state:shade]` is optional: one digit per cell. Blanks in the frame with a shade digit are
+  drawn as tone at full light.
+- An icon must fit in 10 × 4 cells, a close-up in 92 × 24. Both are padded to exactly that size.
 - `cli.load_world` reads every file `picture_paths(world_json)` lists, with the size it is used
   at, and `parse_picture` parses it. `build_world` checks every reference and stores the
   pictures on the `World`. Nothing draws them yet; E2 and E3 do.
@@ -602,7 +616,7 @@ test pure functions. `conftest.py` loads a fresh copy of the packaged world for 
   the shortest win and a warning for each missing icon or close-up, and an unwinnable world,
   a par below the shortest win or a broken `use` exit 1.
 
-The real terminal (layout at 100 × 30 and 140 × 40, Ctrl-C/Ctrl-D, a too-small window, resize)
+The real terminal (layout at 100 × 44 and 140 × 50, Ctrl-C/Ctrl-D, a too-small window, resize)
 is checked by playing the real game in a terminal before each merge. Anything that can be
 checked in code, such as line widths or a missing command hint, becomes a pytest test.
 
