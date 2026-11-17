@@ -235,7 +235,9 @@ def test_room_shows_every_object_and_each_state_changes_visibly(
         seen.add(picture)
         if line == "use flashbulb on vent":
             place = art.placements["fuse"]
-            assert compose(art, room)[place.row][place.column] == "▯"  # the fuse is revealed
+            fuse = art.sprites["fuse"][0]
+            row = compose(art, room)[place.row]
+            assert row[place.column : place.column + len(fuse)] == fuse  # the fuse is revealed
     for state in ["vent:open", "vent:flashed", "fuse box:power on"]:
         assert state in art.sprites, state
 

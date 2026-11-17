@@ -1,0 +1,66 @@
+# Scene for scripts/bake_light.py: the electrical room (src/text_adventure/art/electrical_room.txt).
+# Rows and columns count from 0 inside the 92 × 24 picture.
+
+width = 92
+height = 24
+
+# The back wall's frame, as drawn in [background].
+[wall]
+top = 3
+bottom = 14
+left = 14
+right = 77
+
+# How much light each surface gives back, 0-9, and its texture.
+[shade]
+ceiling = 3
+back_wall = 6
+side_walls = 4
+floor = 7
+plank = -1  # every other floor plank is this much darker
+seam = 2    # block seams on the back wall are this much darker
+
+# The lamp hanging from the ceiling, the bulb under its shade.
+[lamp]
+row = 6
+column = 31
+reach = 26.0  # distance in cells (rows count double) where the light has halved
+cone = 0.85   # half-angle of the cone below the lamp, in radians
+glow = 0.12   # share of the light outside the cone
+power = 1.7   # brightness; values over 1 saturate the pool under the lamp
+
+# The lamp itself is the brightest thing in the room, though the cone shines below it.
+[[marks]]
+rows = [4, 6]
+columns = [28, 34]
+letter = 9
+
+# Inside the door frame is night blue: the open door's sky and skyline, and the closed
+# door's cold steel.
+[[marks]]
+rows = [6, 13]
+columns = [64, 74]
+letter = "n"
+
+# Power on: the ceiling tube lights the whole room, the lamp still brightest.
+[[light_state]]
+state = "power on"
+ambient = 5
+
+# The small red light by the door wakes up.
+[[light_state.marks]]
+rows = [6, 6]
+columns = [61, 61]
+letter = "r"
+
+# The bolt's light over the keyhole is lit.
+[[light_state.marks]]
+rows = [7, 7]
+columns = [68, 68]
+letter = "*"
+
+# The tube itself.
+[[light_state.marks]]
+rows = [1, 1]
+columns = [48, 62]
+letter = "*"

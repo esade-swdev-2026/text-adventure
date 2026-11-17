@@ -12,12 +12,12 @@ art). Where a rule can be checked in code, a test checks it (section 12).
 >
 > **This version describes the tonal art redesign (E7).** It changes the picture to 92 × 24
 > drawn in line art plus `░▒▓█` shading, the screen to 96 × 43, the icons to 10 × 4 and the
-> palette to a graded light scale, and drops light-theme support. The engine is built
-> (E7.2): sizes, tone, light levels, light maps by state and the graded roles. The room art
-> (E7.3), the close-up and the icons (E7.4) are still the old drawings, padded into the new
-> sizes. Also not built:
-> power-on lighting (E5.1), lamp flicker (E5.3), the colour-off switch (E4.3), close-up art
-> (E3) and the intro and ending screens (E6).
+> palette to a graded light scale, and drops light-theme support. Built: the engine (E7.2:
+> sizes, tone, light levels, light maps by state, the graded roles) and the room (E7.3: drawn
+> at 92 × 24, light baked by `scripts/bake_light.py`, with `[light:power on]`, so power-on
+> lighting, E5.1, works too). The close-up and the icons (E7.4) are still the old drawings,
+> padded into the new sizes. Also not built: lamp flicker (E5.3), the colour-off switch
+> (E4.3), close-up art (E3) and the intro and ending screens (E6).
 
 Rows and columns are counted from 1, inside the **screen block** (section 2), top-left first.
 
@@ -381,9 +381,12 @@ Same `[section]` syntax as before.
 Nobody types 2,208 digits by hand. `scripts/bake_light.py` is a development tool: it is not in
 the package, the game never runs or imports it, and its output is a draft.
 
-- It reads a small **scene file** next to the art: the surfaces (back wall, side walls, ceiling,
+- It reads a small **scene file**, kept with the script in `scripts/scenes/` so it is not
+  shipped with the game: the surfaces (back wall, side walls, ceiling,
   floor) with a shade each and optional texture (floor planks, wall seams), the lamp's position,
-  cone and fall-off, and the extra light of each light state (the ceiling tube for `power on`).
+  cone and fall-off, colour letters or levels stamped on rectangles (the night inside the door
+  frame, the lamp itself at full light), and the extra light of each light state (the ceiling
+  tube for `power on`).
 - It prints `[shade]`, `[light]` and `[light:power on]` sections. The author pastes them into
   the art file, then edits them by hand: darkening a corner, lighting the edge of an object.
   The committed art file is the source of truth; the script is never rerun over hand edits

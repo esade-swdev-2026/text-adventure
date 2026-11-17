@@ -16,8 +16,8 @@
           "inspect": "A press flashbulb with one shot left. Not yours: somebody took pictures in here tonight. One flash would show what the lamp can't.",
           "refusal": "You've got one flash. Save it for somewhere the lamp can't reach.",
           "sprite": [
-            10,
-            34
+            19,
+            40
           ],
           "icon": "art/icons/flashbulb.txt"
         }
@@ -29,8 +29,8 @@
           "open_text": "The toolbox gapes open.",
           "inspect": "Your own toolbox, dented and familiar. Somebody went through it tonight and put everything back, almost right.",
           "sprite": [
-            8,
-            14
+            17,
+            17
           ],
           "contents": [
             {
@@ -40,12 +40,12 @@
               "icon": "art/icons/screwdriver.txt",
               "closeup": "art/closeups/screwdriver.txt",
               "sprite": [
-                9,
-                16
+                19,
+                19
               ],
               "floor": [
-                9,
-                46
+                21,
+                44
               ]
             },
             {
@@ -53,12 +53,12 @@
               "description": "heavy and rusted",
               "inspect": "Heavy and rusted, the jaws set wide. Too big for anything in here but the bolts on the vent.",
               "sprite": [
-                9,
-                20
+                19,
+                28
               ],
               "floor": [
-                8,
-                54
+                19,
+                50
               ],
               "icon": "art/icons/wrench.txt"
             }
@@ -90,8 +90,8 @@
             }
           ],
           "sprite": [
-            2,
-            46
+            5,
+            38
           ],
           "contents": [
             {
@@ -99,12 +99,12 @@
               "description": "small and brass",
               "inspect": "Small and brass, on a paper tag. In a woman's hand: \"For when you wake up. V.\"",
               "sprite": [
-                4,
-                48
+                8,
+                42
               ],
               "floor": [
-                10,
-                52
+                22,
+                50
               ],
               "icon": "art/icons/key.txt"
             }
@@ -146,19 +146,19 @@
               "hidden": true,
               "inspect": "A good glass fuse, wrapped in a silk handkerchief with a V stitched in the corner. Pulled, not blown.",
               "floor": [
-                9,
+                20,
                 58
               ],
               "sprite": [
-                6,
-                62
+                13,
+                54
               ],
               "icon": "art/icons/fuse.txt"
             }
           ],
           "sprite": [
-            5,
-            60
+            11,
+            50
           ]
         }
       ],
@@ -181,8 +181,8 @@
           "open": "The door stands open on a wet, glittering night."
         },
         "sprite": [
-          2,
-          72
+          5,
+          63
         ]
       }
     }

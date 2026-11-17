@@ -67,7 +67,7 @@ next. The player has to look at the room and choose a verb and a thing.
 
 | ID | Feature | Description | Size | Priority | Depends on |
 |---|---|---|---|---|---|
-| E5.1 | **Power-on lighting** | When the fuse is fixed, the light spreads across the room: most of it turns from shadow to amber, and the lamp stops swinging. This is the visual high point of the room. Built as a second baked light map, `[light:power on]` (SCREEN-SPEC §5.5). | M | Should | E1.3, E4.1, E7.3 |
+| E5.1 | **Power-on lighting** | When the fuse is fixed, the light spreads across the room: most of it turns from shadow to amber, and the lamp stops swinging. This is the visual high point of the room. Built in E7.3 as a second baked light map, `[light:power on]` (SCREEN-SPEC §5.5); the lamp's swing stops once E5.3 adds the flicker. | M | Should | E1.3, E4.1, E7.3 |
 | E5.2 | **Flashbulb flash** | Using the flashbulb shows one fully lit, white frame, then the room returns to normal with the newly found thing highlighted. | S | Should | E1.3 |
 | E5.3 | **Lamp flicker** | While the player thinks, the lamp dips now and then: the pool of light darkens for a moment and comes back, without disturbing what is being typed. Never a strobe; off without colour, while inspecting, once the power is on, or with `--no-motion` (SCREEN-SPEC §5.6). | M | Could | E7.2 |
 

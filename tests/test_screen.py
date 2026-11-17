@@ -226,8 +226,8 @@ def test_changed_object_is_spotlit_in_the_room(world: World, player: Player) -> 
     play_turn(player, "open toolbox")
     screen = screen_for(world, player, focus="toolbox")
     lit = [text for line in screen.rows for text, role in line if role is Role.FOCUS]
-    assert lit[0].startswith("╔═════════╗╻")  # only the toolbox's columns
-    assert all(len(text) == len(lit[0]) for text in lit)
+    assert lit[0] == world.art_for(player.current_room).sprites["toolbox:open"][0]
+    assert all(len(text) == len(lit[0]) for text in lit)  # only the toolbox's columns
 
 
 def test_the_flash_lights_the_whole_picture_and_nothing_else(world: World, player: Player) -> None:
@@ -243,11 +243,14 @@ def test_the_flash_lights_the_whole_picture_and_nothing_else(world: World, playe
 
 
 def test_shading_follows_the_light_map(world: World, player: Player) -> None:
-    lamp_row = screen_for(world, player).rows[3]  # picture row 2: the lamp and the fuse box
-    light = "".join(text for text, role in lamp_row if role is Role.LIGHT)
-    shadow = "".join(text for text, role in lamp_row if role is Role.SHADOW)
-    assert "▗▟█▙▖" in light
-    assert "┌──────────┐" in shadow
+    screen = screen_for(world, player)
+    lamp_row = screen.rows[5]  # picture row 4: the lamp's shade
+    assert "▗▟█▙▖" in "".join(text for text, role in lamp_row if role is Role.LIGHT)
+    floor_row = screen.rows[17]  # picture row 16: the floor under the lamp, the door far off
+    pool = "".join(text for text, role in floor_row if role is Role.GLOW)
+    assert "█" in pool or "▓" in pool  # dense tone where the light is strongest
+    door_row = screen.rows[6]  # picture row 5: the door's top, far from the lamp
+    assert "┌───────────┐" in "".join(text for text, role in door_row if role is Role.SHADOW)
 
 
 def test_history_keeps_the_newest_at_the_bottom_in_three_rows() -> None:
@@ -334,7 +337,7 @@ def test_inspecting_without_a_close_up_keeps_the_room_with_the_thing_in_the_spot
     assert lines[ART_HEIGHT + 1].startswith("╰─ Enter returns to the room ─")
     assert lines[DESCRIPTION_ROW].startswith("  Your own toolbox, dented and familiar.")
     lit = roles_of(screen, Role.FOCUS)
-    assert "╔═════════╗" in lit
+    assert world.art_for(player.current_room).sprites["toolbox:closed"][1] in lit
 
 
 def test_close_up_frame_follows_the_state() -> None:
