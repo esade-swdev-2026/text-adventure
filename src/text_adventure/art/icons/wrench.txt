@@ -1,9 +1,11 @@
 [default]
-▜▖    ▗▛
- ▐━━━━▌
-▟▘    ▝▙
+▜▙      ▟▛
+ ▐▓▓▓▒▒▒▌
+ ▐▒▒▒░░░▌
+▟▛      ▜▙
 
 [default:colors]
-ff    ff
- ffffff
-ff    ff
+ff      ff
+ ffffffff
+ ffffffff
+ff      ff

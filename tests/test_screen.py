@@ -56,6 +56,7 @@ def screen_for(
     moves: int = 0,
     focus: str | None = None,
     inspected: Inspected | None = None,
+    dip: int = 0,
 ) -> Screen:
     room = player.current_room
     return build_screen(
@@ -67,6 +68,7 @@ def screen_for(
         icons=world.icons,
         focus=focus,
         inspected=inspected,
+        dip=dip,
     )
 
 
@@ -218,7 +220,9 @@ def test_just_taken_item_is_spotlit_in_its_slot(world: World, player: Player) ->
     play_turn(player, "take flashbulb")
     screen = screen_for(world, player, focus="flashbulb")
     lit = roles_of(screen, Role.FOCUS)
-    assert "▗▆▆▖" in lit and "╭────────────╮" in lit
+    icon = world.icon_for("flashbulb")
+    assert icon is not None
+    assert icon.frame().rows[0].strip() in lit and "╭────────────╮" in lit
     assert "flashbulb" not in lit  # the name keeps its VERB role
 
 
@@ -321,7 +325,11 @@ def test_inspect_view_shows_the_close_up_name_hint_and_description(
     lines = rows(screen)
     assert " SCREWDRIVER " in lines[0] and lines[0].endswith(" 3 moves ─╮")
     assert lines[ART_HEIGHT + 1].startswith("╰─ Enter returns to the room ─")
-    assert "▗▄▄▄▄" in lines[4]  # the close-up, not the room
+    closeup = world.closeup_for(player.current_room, "screwdriver")
+    assert closeup is not None
+    drawn = [(index, row) for index, row in enumerate(closeup.frame().rows) if row.strip()]
+    first_row, first_drawn = drawn[0]
+    assert first_drawn.strip() in lines[1 + first_row]  # the close-up's own first drawn row
     assert lines[DESCRIPTION_ROW].startswith("  A worn flathead. The tip is just the width")
     assert lines[-1] == "  [Electrical Room] > "  # the room is still where you are
 
@@ -487,3 +495,33 @@ def test_picture_blanks_with_shade_become_tone_and_colour_digits_are_light_level
     (line,) = frame_lines(frame)
     assert line_text(line) == "x██"
     assert [role for text, role in line for _ in text] == [Role.GLOW, Role.SHADOW, Role.DUSK]
+
+
+def test_a_dip_darkens_the_pictures_light_and_changes_nothing_else(
+    world: World, player: Player
+) -> None:
+    history = [Message("You look around.")]
+    normal = rows(screen_for(world, player, history, moves=2))
+    dipped = rows(screen_for(world, player, history, moves=2, dip=2))
+    picture = range(1, 1 + ART_HEIGHT)
+    assert [row for i, row in enumerate(normal) if i not in picture] == [
+        row for i, row in enumerate(dipped) if i not in picture
+    ]  # borders, text, panels and prompt are untouched
+    changed = 0
+    for row in picture:
+        for before, after in zip(normal[row], dipped[row], strict=True):
+            if before != after:
+                changed += 1
+                assert before in RAMP and after in RAMP and RAMP.index(after) < RAMP.index(before)
+    assert changed > 100  # the whole pool of light dims, not one cell
+
+
+def test_a_dip_leaves_the_night_and_the_roles_of_the_screen_as_they_are(
+    world: World, player: Player
+) -> None:
+    normal, dipped = screen_for(world, player), screen_for(world, player, dip=2)
+    night = roles_of(normal, Role.NIGHT)
+    assert night and night == roles_of(dipped, Role.NIGHT)  # colour letters do not dip
+    for role in (Role.TEXT, Role.BORDER, Role.VERB, Role.PROMPT):
+        assert roles_of(normal, role) == roles_of(dipped, role)
+    assert screen_for(world, player, dip=0).rows == normal.rows

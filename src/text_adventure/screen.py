@@ -24,6 +24,7 @@ from .art import (
     Picture,
     compose,
     compose_shade,
+    dimmed,
     level,
     light_for,
     sprite_box,
@@ -317,12 +318,16 @@ def _cell(char: str, shade: str, light: str, row: int, column: int) -> tuple[str
 
 
 def room_picture(
-    art: Art, room: Room, focus: Box | None = None, full_light: bool = False
+    art: Art,
+    room: Room,
+    focus: Box | None = None,
+    full_light: bool = False,
+    light_map: Sequence[str] | None = None,
 ) -> list[Line]:
     """The room composed for its current state: each cell line art or tone, in the role of
     its light level, or in the spotlight. `full_light` lights every cell at level 9 (the
-    flashbulb's flash)."""
-    light_map = light_for(art, room)
+    flashbulb's flash); `light_map` replaces the room's light map (the lamp's dip)."""
+    light_map = light_for(art, room) if light_map is None else light_map
     shades = compose_shade(art, room)
     lines = []
     for row, chars in enumerate(compose(art, room)):
@@ -502,18 +507,23 @@ def build_screen(
     focus: str | None = None,
     inspected: Inspected | None = None,
     flash: bool = False,
+    dip: int = 0,
 ) -> Screen:
     """The main screen, or the inspect view when `inspected` is given.
 
     `history` is every entry so far, oldest first (the intro first, as narration). `focus`
     names the thing the last command changed: its slot is spotlit if it is carried, its
     sprite in the room otherwise. `flash` draws the room at full light, for the flashbulb.
+    `dip` lowers every light digit of the room's picture by that many levels, for the lamp's
+    flicker (docs/SCREEN-SPEC.md §5.6); nothing else on the screen changes.
     """
     icons = icons or {}
     carried = focus is not None and inventory.has_item(focus)
     room_focus = sprite_box(art, room, focus) if focus and not carried else None
     title, hint = room.name.upper(), ""
-    picture = room_picture(art, room, room_focus, full_light=flash)
+    picture = room_picture(
+        art, room, room_focus, full_light=flash, light_map=dimmed(light_for(art, room), dip)
+    )
     description = description_rows(room)
     if inspected is not None:
         title, hint = inspected.name.upper(), INSPECT_HINT

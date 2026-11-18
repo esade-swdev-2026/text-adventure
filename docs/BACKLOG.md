@@ -67,9 +67,9 @@ next. The player has to look at the room and choose a verb and a thing.
 
 | ID | Feature | Description | Size | Priority | Depends on |
 |---|---|---|---|---|---|
-| E5.1 | **Power-on lighting** | When the fuse is fixed, the light spreads across the room: most of it turns from shadow to amber, and the lamp stops swinging. This is the visual high point of the room. Built in E7.3 as a second baked light map, `[light:power on]` (SCREEN-SPEC §5.5); the lamp's swing stops once E5.3 adds the flicker. | M | Should | E1.3, E4.1, E7.3 |
+| E5.1 | **Power-on lighting** | When the fuse is fixed, the light spreads across the room: most of it turns from shadow to amber, and the lamp stops swinging. This is the visual high point of the room. Built in E7.3 as a second baked light map, `[light:power on]` (SCREEN-SPEC §5.5); the lamp stops flickering (E5.3). | M | Should | E1.3, E4.1, E7.3 |
 | E5.2 | **Flashbulb flash** | Using the flashbulb shows one fully lit, white frame, then the room returns to normal with the newly found thing highlighted. | S | Should | E1.3 |
-| E5.3 | **Lamp flicker** | While the player thinks, the lamp dips now and then: the pool of light darkens for a moment and comes back, without disturbing what is being typed. Never a strobe; off without colour, while inspecting, once the power is on, or with `--no-motion` (SCREEN-SPEC §5.6). | M | Could | E7.2 |
+| E5.3 | **Lamp flicker** | While the player thinks, the lamp dips now and then: the pool of light darkens for a moment and comes back, without disturbing what is being typed. Never a strobe; off without colour, while inspecting, once the power is on, or with `--no-motion` (SCREEN-SPEC §5.6). Built: the timing and the 3-dips-in-10-seconds cap are pure code in `art.py`; a thread in `terminal.py` draws the dips. | M | Could | E7.2 |
 
 ## E6 · Intro and ending
 
@@ -89,7 +89,7 @@ prototype; see SCREEN-SPEC §1, §2, §5, §6 and §7.
 | E7.1 | **Spec** | SCREEN-SPEC rewritten for the 92 × 24 picture, the 96 × 43 screen, tone cells, light levels, 10 × 4 icons and dark themes only. | S | Must | |
 | E7.2 | **Tone engine** | Parse `[shade]`, light levels `0`–`9`, `[light:<state>]` and shade maps for sprites and pictures; draw each cell as line art or dithered tone; the graded light roles and their styles; the new sizes. Ships with a placeholder room so the game keeps running. README and ARCHITECTURE updated. | M | Must | E7.1 |
 | E7.3 | **Room art and light baking** | `scripts/bake_light.py` and a scene file bake the shade and light maps as a draft; the electrical room is redrawn at 92 × 24 with sprites about twice as tall, then edited by hand and checked with pilotty. | L | Must | E7.2 |
-| E7.4 | **Close-up and icons** | The screwdriver close-up redrawn at 92 × 24 as a fully shaded object; the five icons redrawn at 10 × 4 with shading. | M | Must | E7.2 |
+| E7.4 | **Close-up and icons** | The screwdriver close-up redrawn at 92 × 24 as a fully shaded object; the five icons redrawn at 10 × 4 with shading. Built: the close-up is drafted by `scripts/bake_closeup.py` (SCREEN-SPEC §7.1), then edited by hand. | M | Must | E7.2 |
 
 ---
 
