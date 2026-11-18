@@ -190,10 +190,10 @@ Every module is either **pure** (works on plain data, never prints, never reads 
 | `game.py` | pure | `apply_command(player, command, par) -> Outcome` (the rules, and the move count) and `play_turn(player, text, par)`, which parses first. `Outcome` holds `message`, `error`, `won`, `quit`, `subject`, `moved` and `inspected` (an `Inspection`). `win_message(moves, par)`. |
 | `world.py` | pure | `build_world(data, art, pictures) -> World` checks the parsed JSON and raises `WorldError`. `World` holds `first_room`, `intro`, `ending`, `par`, each room's `Art` and each object's icon and close-up. `missing_pictures(world)` lists the art still to draw. |
 | `solve.py` | pure | `shortest_win(world)`: a breadth-first search over game states that returns the fewest commands that win, or `None`. `reachable(world)` returns every state the player can reach. Used by `check` and the tests. |
-| `art.py` | pure | `parse_art(text) -> Art` and `compose(art, room) -> list[str]`, which draws each object's sprite for its current state (`door_state`: locked, unlocked or open). `parse_picture(text, size) -> Picture` reads an icon or close-up. Widths are in terminal cells. |
+| `art.py` | pure | `parse_art(text) -> Art` and `compose(art, room) -> list[str]`, which draws each object's sprite for its current state (`door_state`: locked, unlocked or open). `parse_picture(text, size) -> Picture` reads an icon or close-up. Widths are in terminal cells. The lamp's flicker is decided here, as pure code: `dimmed`, `flicker_wanted` and `FlickerSchedule`. |
 | `screen.py` | pure | `describe_room`, `thing_description`, `visible_names` and `complete` (Tab), and `build_screen` / `build_win_screen`, which return every row of the 96 × 29 block as text tagged with a role (border, shadow, lit, result, history…). |
-| `terminal.py` | I/O | `Terminal`: draws a screen with rich (one style per role, centred both ways, cleared between turns), shows the too-small screen, redraws on resize keeping typed text, reads a line, prints "Goodbye.". |
-| `cli.py` | I/O | Typer commands `play [--world PATH]` and `check PATH` (which also proves the world can be won within its par). Reads `world.json`, the art files and the picture files, runs the loop, turns every load error into `Error: …` and exit code 1, and handles Ctrl-C / Ctrl-D. |
+| `terminal.py` | I/O | `Terminal`: draws a screen with rich (one style per role, centred both ways, cleared between turns), shows the too-small screen, redraws on resize keeping typed text, reads a line, prints "Goodbye.", and runs the lamp's flicker thread. |
+| `cli.py` | I/O | Typer commands `play [--world PATH] [--no-motion]` and `check PATH` (which also proves the world can be won within its par). Reads `world.json`, the art files and the picture files, runs the loop, turns every load error into `Error: …` and exit code 1, and handles Ctrl-C / Ctrl-D. |
 | `world.json`, `art/*.txt` | data | The story and the drawings. |
 
 The old numbered `menu.py` is gone: typed commands replaced it.
@@ -327,6 +327,40 @@ changed is drawn bold for one turn. `terminal.py` holds two style tables, `COLOR
 `NO_COLOR_STYLES`; the second is the black-and-white fallback (lit normal, shadow dim) used
 when rich finds no colour. Smaller windows get a centred request to resize, and the screen
 redraws as soon as the window changes size.
+
+### Lamp flicker
+
+While the player thinks, the lamp dips now and then (docs/SCREEN-SPEC.md §5.6). It is split so
+that only the timer is hard to test:
+
+- **Pure, in `art.py`, tested with pytest.** `dimmed(light, by)` lowers every light digit
+  (colour letters stay). `flicker_wanted(...)` says whether to flicker at all: room view, power
+  off, colour on, a terminal, `TERM` not `dumb`, a screen big enough, no `--no-motion`.
+  `FlickerSchedule` picks the next flicker (3 to 8 seconds away, one or two dips) and remembers
+  every dip it has planned, so there are never more than 3 dips in any 10 seconds. The cap is
+  in the schedule, not in the interval, because flickers 3 seconds apart with two dips each
+  would make 8; a test plans ten minutes for 30 seeds and checks every window.
+- **`screen.py`.** `build_screen(..., dip=n)` draws the room with `dimmed(light_for(art, room), n)`;
+  nothing else on the screen changes.
+- **`cli.py`** asks `terminal.flicker_for(art, room, inspecting)` and, if yes, hands the
+  terminal the normal screen and the dipped one: `terminal.draw(screen(), screen(dip=DIP))`.
+- **`terminal.py`, the thread.** When a screen with a dipped twin is drawn, the main thread
+  renders the 24 picture rows of both to ANSI strings (so the thread never calls rich). While
+  `read()` waits in `console.input`, a daemon thread sleeps until the schedule's next flicker;
+  for each dip it takes a lock, writes the dipped rows (`picture_write`: save the cursor, move
+  to each picture row, write it, restore the cursor, all in one string), waits 70 ms and writes
+  the normal rows. It never writes on the prompt's row. It stops when `read()` returns, on a
+  resize (`SIGWINCH` redraws everything, and the next `read()` starts it again) and on exit,
+  and a dip is always put right before the thread ends. The schedule belongs to the `Terminal`,
+  so the cap holds across screens.
+- **Debug.** `TEXT_ADVENTURE_FLICKER_EVERY=1` makes every flicker come after that many seconds
+  instead of 3 to 8, so a pilotty session need not wait. The cap of 3 dips in 10 seconds still
+  holds.
+
+readline and libedit redraw the prompt line themselves, so the flicker only ever touches the
+picture rows, saves and restores the cursor in the same write, and keeps each dip to 70 ms.
+The thread itself cannot be tested in pytest beyond starting and stopping it; typing during a
+flicker is checked in the real game with pilotty.
 
 `look` stays as a command: it redraws the screen.
 

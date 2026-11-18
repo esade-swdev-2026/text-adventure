@@ -56,6 +56,7 @@ def screen_for(
     moves: int = 0,
     focus: str | None = None,
     inspected: Inspected | None = None,
+    dip: int = 0,
 ) -> Screen:
     room = player.current_room
     return build_screen(
@@ -67,6 +68,7 @@ def screen_for(
         icons=world.icons,
         focus=focus,
         inspected=inspected,
+        dip=dip,
     )
 
 
@@ -493,3 +495,33 @@ def test_picture_blanks_with_shade_become_tone_and_colour_digits_are_light_level
     (line,) = frame_lines(frame)
     assert line_text(line) == "x██"
     assert [role for text, role in line for _ in text] == [Role.GLOW, Role.SHADOW, Role.DUSK]
+
+
+def test_a_dip_darkens_the_pictures_light_and_changes_nothing_else(
+    world: World, player: Player
+) -> None:
+    history = [Message("You look around.")]
+    normal = rows(screen_for(world, player, history, moves=2))
+    dipped = rows(screen_for(world, player, history, moves=2, dip=2))
+    picture = range(1, 1 + ART_HEIGHT)
+    assert [row for i, row in enumerate(normal) if i not in picture] == [
+        row for i, row in enumerate(dipped) if i not in picture
+    ]  # borders, text, panels and prompt are untouched
+    changed = 0
+    for row in picture:
+        for before, after in zip(normal[row], dipped[row], strict=True):
+            if before != after:
+                changed += 1
+                assert before in RAMP and after in RAMP and RAMP.index(after) < RAMP.index(before)
+    assert changed > 100  # the whole pool of light dims, not one cell
+
+
+def test_a_dip_leaves_the_night_and_the_roles_of_the_screen_as_they_are(
+    world: World, player: Player
+) -> None:
+    normal, dipped = screen_for(world, player), screen_for(world, player, dip=2)
+    night = roles_of(normal, Role.NIGHT)
+    assert night and night == roles_of(dipped, Role.NIGHT)  # colour letters do not dip
+    for role in (Role.TEXT, Role.BORDER, Role.VERB, Role.PROMPT):
+        assert roles_of(normal, role) == roles_of(dipped, role)
+    assert screen_for(world, player, dip=0).rows == normal.rows

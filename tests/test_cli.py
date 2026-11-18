@@ -3,9 +3,12 @@ import shutil
 from pathlib import Path
 from typing import Any
 
+import pytest
 from typer.testing import CliRunner
 
+from text_adventure import cli
 from text_adventure.cli import app
+from text_adventure.terminal import Terminal
 from text_adventure.world import art_paths, picture_paths
 
 runner = CliRunner()
@@ -18,6 +21,20 @@ def test_scripted_playthrough_wins_and_exits_0(win_script: list[str]) -> None:
     assert 'I don\'t know how to "dance"' in result.output
     assert "Escaped in 12 moves. Par is 12. Sharp." in result.output
     assert "Thanks for playing." in result.output
+
+
+def test_no_motion_keeps_the_picture_still(monkeypatch: pytest.MonkeyPatch) -> None:
+    motion: list[bool] = []
+
+    class Spy(Terminal):
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            super().__init__(*args, **kwargs)
+            motion.append(self.motion)
+
+    monkeypatch.setattr(cli, "Terminal", Spy)
+    assert runner.invoke(app, ["play", "--no-motion"], input="quit\n").exit_code == 0
+    assert runner.invoke(app, ["play"], input="quit\n").exit_code == 0
+    assert motion == [False, True]
 
 
 def test_end_of_input_says_goodbye_without_a_traceback() -> None:

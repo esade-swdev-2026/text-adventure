@@ -64,7 +64,8 @@ and CI resolve the same ones. When you change a dependency in `pyproject.toml`, 
 uv run text-adventure play
 ```
 
-Use a terminal of at least 100 × 44 with a dark background. Other commands:
+Use a terminal of at least 100 × 44 with a dark background. While you think, the lamp
+dips now and then; `play --no-motion` keeps the picture still. Other commands:
 
 ```
 uv run text-adventure --help
@@ -161,7 +162,9 @@ background**. The room is drawn in line art and `░▒▓█` shading, light fa
 lamp into true black, in 256 colours (slate shadow, amber lamplight, red for mistakes). On a
 light background the shading reads as a photo negative. Bold and dim carry the same meaning
 as the colours, so piped output and `TERM=dumb` get a black and white version, and a
-terminal that can't show UTF-8 gets plain ASCII art. If you resize the window, the screen is
+terminal that can't show UTF-8 gets plain ASCII art. The lamp's flicker (at most 3 dips in any
+10 seconds, never while inspecting or once the power is on) only runs in colour, in a real
+terminal. If you resize the window, the screen is
 redrawn at once; below 100 × 44 it asks for a bigger window. What you had typed is kept with GNU readline (most Linux builds) and lost with
 libedit (the macOS default).
 
