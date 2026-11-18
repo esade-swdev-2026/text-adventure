@@ -539,6 +539,9 @@ ssssssssssss
 - `[state:shade]` is optional: one digit per cell. Blanks in the frame with a shade digit are
   drawn as tone at full light.
 - An icon must fit in 10 × 4 cells, a close-up in 92 × 24. Both are padded to exactly that size.
+- The screwdriver close-up's three sections are drafted by `scripts/bake_closeup.py` (the
+  handle and the shaft as lit cylinders) and then edited by hand, like the room's maps. It is
+  a development tool outside the package, as `bake_light.py` is.
 - `cli.load_world` reads every file `picture_paths(world_json)` lists, with the size it is used
   at, and `parse_picture` parses it. `build_world` checks every reference and stores the
   pictures on the `World`. Nothing draws them yet; E2 and E3 do.

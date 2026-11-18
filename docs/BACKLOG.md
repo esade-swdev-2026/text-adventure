@@ -89,7 +89,7 @@ prototype; see SCREEN-SPEC §1, §2, §5, §6 and §7.
 | E7.1 | **Spec** | SCREEN-SPEC rewritten for the 92 × 24 picture, the 96 × 43 screen, tone cells, light levels, 10 × 4 icons and dark themes only. | S | Must | |
 | E7.2 | **Tone engine** | Parse `[shade]`, light levels `0`–`9`, `[light:<state>]` and shade maps for sprites and pictures; draw each cell as line art or dithered tone; the graded light roles and their styles; the new sizes. Ships with a placeholder room so the game keeps running. README and ARCHITECTURE updated. | M | Must | E7.1 |
 | E7.3 | **Room art and light baking** | `scripts/bake_light.py` and a scene file bake the shade and light maps as a draft; the electrical room is redrawn at 92 × 24 with sprites about twice as tall, then edited by hand and checked with pilotty. | L | Must | E7.2 |
-| E7.4 | **Close-up and icons** | The screwdriver close-up redrawn at 92 × 24 as a fully shaded object; the five icons redrawn at 10 × 4 with shading. | M | Must | E7.2 |
+| E7.4 | **Close-up and icons** | The screwdriver close-up redrawn at 92 × 24 as a fully shaded object; the five icons redrawn at 10 × 4 with shading. Built: the close-up is drafted by `scripts/bake_closeup.py` (SCREEN-SPEC §7.1), then edited by hand. | M | Must | E7.2 |
 
 ---
 

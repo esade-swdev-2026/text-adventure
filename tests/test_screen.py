@@ -323,7 +323,11 @@ def test_inspect_view_shows_the_close_up_name_hint_and_description(
     lines = rows(screen)
     assert " SCREWDRIVER " in lines[0] and lines[0].endswith(" 3 moves ─╮")
     assert lines[ART_HEIGHT + 1].startswith("╰─ Enter returns to the room ─")
-    assert "▗▄▄▄▄" in lines[4]  # the close-up, not the room
+    closeup = world.closeup_for(player.current_room, "screwdriver")
+    assert closeup is not None
+    drawn = [(index, row) for index, row in enumerate(closeup.frame().rows) if row.strip()]
+    first_row, first_drawn = drawn[0]
+    assert first_drawn.strip() in lines[1 + first_row]  # the close-up's own first drawn row
     assert lines[DESCRIPTION_ROW].startswith("  A worn flathead. The tip is just the width")
     assert lines[-1] == "  [Electrical Room] > "  # the room is still where you are
 
