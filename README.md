@@ -193,10 +193,10 @@ the same four checks and pull-request review as the rest of the code.
 ## Develop
 
 ```
-uv run ruff check .          # lint
-uv run ruff format .         # format (CI runs `--check` and fails on a diff)
-uv run mypy src tests        # types
-uv run pytest                # tests
+uv run ruff check .           # lint
+uv run ruff format .          # format (CI runs `--check` and fails on a diff)
+uv run mypy src tests scripts # types
+uv run pytest                 # tests
 ```
 
 These four commands are exactly what `.github/workflows/check.yml` runs on every push.

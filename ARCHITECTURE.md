@@ -622,13 +622,18 @@ test pure functions. `conftest.py` loads a fresh copy of the packaged world for 
   file, invalid JSON and a bad picture file exit 1 with `Error:`, `check` prints a summary,
   the shortest win and a warning for each missing icon or close-up, and an unwinnable world,
   a par below the shortest win or a broken `use` exit 1.
+- **Development scripts** (`test_bake_light.py`, `test_bake_closeup.py`): `scripts/` is not a
+  package, so the tests load each script from its file (the `load_script` fixture). They check
+  the properties of a bake (sizes, allowed cells, the lamp at full light, the power-on light at
+  least the ambient level, two bakes the same), never the committed maps, because the art
+  files are edited by hand after a bake. CI runs `mypy` on `scripts` too.
 
 The real terminal (layout at 100 × 44 and 140 × 50, Ctrl-C/Ctrl-D, a too-small window, resize)
 is checked by playing the real game in a terminal before each merge. Anything that can be
 checked in code, such as line widths or a missing command hint, becomes a pytest test.
 
-The four CI checks (`ruff check`, `ruff format --check`, `mypy`, `pytest`) must pass before a
-pull request is merged.
+The four CI checks (`ruff check`, `ruff format --check`, `mypy` on `src tests scripts`, `pytest`)
+must pass before a pull request is merged.
 
 ---
 

@@ -756,6 +756,7 @@ Built (E0.2, E2, E4), with sizes updated by E7.2:
 | An unknown state falls back to the first frame | `test_art.py` |
 | The example icon and close-up load at 10 × 4 and 92 × 24 | `test_art.py` |
 | Every item has a 10 × 4 icon; every icon character has an ASCII stand-in of the same width | `test_screen.py` |
+| A light bake: every section 92 × 24, cells digits or colour letters, the lamp's cells at 9, power-on light at least the ambient level, two bakes identical | `test_bake_light.py` |
 | The close-up draft loads at 92 × 24 and is the same on every run; handle colours are light digits `5`-`9`, steel `f`, the cast shadow `1`; every fifth handle column is darker | `test_bake_closeup.py` |
 | `icon` / `closeup` must name a loaded file of the right kind | `test_world.py` |
 | Missing icons and close-ups are listed; scenery needs no icon | `test_world.py` |
