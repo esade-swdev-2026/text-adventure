@@ -9,7 +9,7 @@ from typing import Annotated
 
 import typer
 
-from .art import DIP, Art, ArtError, Picture, parse_art, parse_picture
+from .art import Art, ArtError, Picture, parse_art, parse_picture
 from .game import Inspection, play_turn
 from .models import Inventory, Player, Room
 from .screen import Inspected, Message, Tone, build_screen, build_win_screen
@@ -99,8 +99,7 @@ def run(world: World, terminal: Terminal) -> None:
         )
         if flash:
             terminal.flash(screen(flash=True))
-        flickers = terminal.flicker_for(art, room, inspecting=inspected is not None)
-        terminal.draw(screen(), screen(dip=DIP) if flickers else None)
+        terminal.draw(screen())
         outcome = play_turn(player, terminal.read(), world.par)
         focus, inspected, flash = None, None, False  # any input, even Enter, returns to the room
         if outcome is None:
@@ -141,16 +140,11 @@ WorldOption = Annotated[
 ]
 
 
-NoMotionOption = Annotated[
-    bool, typer.Option("--no-motion", help="Keep the picture still: no lamp flicker.")
-]
-
-
 @app.command()
-def play(world: WorldOption = None, no_motion: NoMotionOption = False) -> None:
+def play(world: WorldOption = None) -> None:
     """Play the game."""
     loaded = _load_or_exit(world)
-    terminal = Terminal(motion=not no_motion)
+    terminal = Terminal()
     try:
         run(loaded, terminal)
     except (KeyboardInterrupt, EOFError):

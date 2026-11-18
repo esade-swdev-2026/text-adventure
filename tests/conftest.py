@@ -1,8 +1,4 @@
-import importlib.util
-from collections.abc import Callable
 from importlib.resources import files
-from pathlib import Path
-from types import ModuleType
 
 import pytest
 
@@ -40,21 +36,3 @@ def win_script() -> list[str]:
         "use key on door",
         "open door",
     ]
-
-
-SCRIPTS = Path(__file__).resolve().parent.parent / "scripts"
-
-
-@pytest.fixture(scope="session")
-def load_script() -> Callable[[str], ModuleType]:
-    """Load a development script from scripts/ by name. It is not a package, so it is read
-    from its file, the way `python scripts/<name>.py` would run it."""
-
-    def load(name: str) -> ModuleType:
-        spec = importlib.util.spec_from_file_location(name, SCRIPTS / f"{name}.py")
-        assert spec is not None and spec.loader is not None
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        return module
-
-    return load
