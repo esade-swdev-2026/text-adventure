@@ -1,9 +1,16 @@
 [default]
- ▗▄▄▄▄▖
-▐█────█▌
- ▝▀▀▀▀▘
+ ▗▄▄▄▄▄▄▖
+▐█ ──── █▌
+▐█      █▌
+ ▝▀▀▀▀▀▀▘
 
 [default:colors]
- ffffff
-ff####ff
- ffffff
+ f887665f
+ff877776ff
+ff665544ff
+ f443322f
+
+[default:shade]
+
+  6    4
+  554433

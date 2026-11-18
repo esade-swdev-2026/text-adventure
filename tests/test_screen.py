@@ -218,7 +218,9 @@ def test_just_taken_item_is_spotlit_in_its_slot(world: World, player: Player) ->
     play_turn(player, "take flashbulb")
     screen = screen_for(world, player, focus="flashbulb")
     lit = roles_of(screen, Role.FOCUS)
-    assert "▗▆▆▖" in lit and "╭────────────╮" in lit
+    icon = world.icon_for("flashbulb")
+    assert icon is not None
+    assert icon.frame().rows[0].strip() in lit and "╭────────────╮" in lit
     assert "flashbulb" not in lit  # the name keeps its VERB role
 
 
