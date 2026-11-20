@@ -59,7 +59,7 @@ def shade_at(scene: dict[str, Any], row: int, column: int) -> int:
         vanish_row = (wall["top"] + wall["bottom"]) / 2
         vanish_column = (wall["left"] + wall["right"]) / 2
         angle = math.atan2(column - vanish_column, (row - vanish_row) * 2)
-        value += shades["plank"] if int(angle * 14) % 2 else 0
+        value += shades["plank"] if math.floor(angle * 14) % 2 else 0
     if kind == "back_wall" and (column + (row % 2) * 4) % 8 == 0:
         value -= shades["seam"]
     return max(0, min(MAX_LEVEL, value + noise(row, column)))

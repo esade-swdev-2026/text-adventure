@@ -359,6 +359,21 @@ def test_a_state_light_map_replaces_the_light_while_an_object_is_in_that_state()
     assert light_for(art, room) == art.lights["open"]
 
 
+def test_with_two_state_maps_active_the_first_container_wins_then_the_door() -> None:
+    art = parse_art("[background]\n.\n[light:open]\n1\n[light:closed]\n2\n[light:unlocked]\n3\n")
+    room = Room("Lab", "", Door(None), [Container("box"), Container("bin")])
+    assert light_for(art, room) == art.lights["closed"]  # both closed: one map, the first's
+    room.containers[1].open(Inventory())
+    assert light_for(art, room) == art.lights["closed"]  # box (first) closed, bin open
+    room.containers[0].open(Inventory())
+    assert light_for(art, room) == art.lights["open"]  # box open now wins over bin
+    hall = Room("Hall", "", Door(None), [Container("box")])
+    hall.door.unlock(Inventory())
+    assert light_for(art, hall) == art.lights["closed"]  # a container before the door
+    no_containers = Room("Yard", "", hall.door)
+    assert light_for(art, no_containers) == art.lights["unlocked"]
+
+
 def test_the_fuse_box_powering_on_would_switch_a_power_on_light_map(
     world: World, player: Player, win_script: list[str]
 ) -> None:

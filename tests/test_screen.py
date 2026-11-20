@@ -525,3 +525,26 @@ def test_a_dip_leaves_the_night_and_the_roles_of_the_screen_as_they_are(
     for role in (Role.TEXT, Role.BORDER, Role.VERB, Role.PROMPT):
         assert roles_of(normal, role) == roles_of(dipped, role)
     assert screen_for(world, player, dip=0).rows == normal.rows
+
+
+def test_the_closed_door_shows_its_steel_and_unlocking_changes_it(
+    world: World, player: Player
+) -> None:
+    room = player.current_room
+    art = world.art_for(room)
+    top, left = art.placements["door"].row, art.placements["door"].column
+
+    def steel() -> str:
+        rows = [line_text(line) for line in room_picture(art, room)]
+        return "".join(row[left + 1 : left + 12] for row in rows[top + 1 : top + 9])
+
+    locked = steel()
+    assert set(locked) & set(RAMP[1:])  # tone shows: the shade is above black under `n`
+    room.door.is_unlocked = True
+    assert steel() != locked
+
+
+def test_the_red_light_by_the_door_wakes_with_the_power(world: World) -> None:
+    art = world.art_for(world.first_room)  # the story says so: "a small red light wakes up"
+    assert not any("r" in row for row in art.light)
+    assert any("r" in row for row in art.lights["power on"])

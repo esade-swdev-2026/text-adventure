@@ -122,9 +122,14 @@ COLOR_ROLES = {
 }
 
 # Line-art characters drawn as light sources (bold) where the light is LIGHT_SOURCE_LEVEL or
-# more. Tone cells never count, though they use █ too.
-LIGHT_SOURCES = frozenset("▗▟█▙▖●*ϟ")
+# more. Tone cells never count. █ is left out: a solid edge in the lamp's pool (a toolbox, a fuse
+# box) would read as a light. A light map's `*` makes any cell LIGHT, █ included.
+LIGHT_SOURCES = frozenset("▗▟▙▖●*ϟ")
 LIGHT_SOURCE_LEVEL = 5
+
+# The lowest shade in the flash: 3 × 9 / 81 = 0.33 is above the black threshold (0.24), so every
+# tone cell shows (docs/SCREEN-SPEC.md §5.3).
+FLASH_SHADE = 3
 
 # The verb panel: (verb, short form). Help and Quit are about the game, so they sit back.
 VERBS = [
@@ -325,8 +330,9 @@ def room_picture(
     light_map: Sequence[str] | None = None,
 ) -> list[Line]:
     """The room composed for its current state: each cell line art or tone, in the role of
-    its light level, or in the spotlight. `full_light` lights every cell at level 9 (the
-    flashbulb's flash); `light_map` replaces the room's light map (the lamp's dip)."""
+    its light level, or in the spotlight. `full_light` lights every cell at level 9 and raises
+    every shade to at least FLASH_SHADE, so the flashbulb's flash has no black holes;
+    `light_map` replaces the room's light map (the lamp's dip)."""
     light_map = light_for(art, room) if light_map is None else light_map
     shades = compose_shade(art, room)
     lines = []
@@ -334,7 +340,10 @@ def room_picture(
         cells = []
         for column, char in enumerate(chars):
             light = str(FULL_LIGHT) if full_light else light_map[row][column]
-            drawn, role = _cell(char, shades[row][column], light, row, column)
+            shade = shades[row][column]
+            if full_light:
+                shade = max(shade, str(FLASH_SHADE))
+            drawn, role = _cell(char, shade, light, row, column)
             cells.append((drawn, Role.FOCUS if focus and focus.contains(row, column) else role))
         lines.append(_runs("".join(c for c, _ in cells), [r for _, r in cells]))
     return lines
