@@ -244,6 +244,8 @@ def test_room_shows_every_object_and_each_state_changes_visibly(
     seen = {"\n".join(compose(art, room))}
     for line in win_script:
         play_turn(player, line)
+        if player.current_room is not room:
+            break
         picture = "\n".join(compose(art, room))
         assert picture not in seen or line.startswith("take"), line  # every step shows
         seen.add(picture)
@@ -254,6 +256,48 @@ def test_room_shows_every_object_and_each_state_changes_visibly(
             assert row[place.column : place.column + len(fuse)] == fuse  # the fuse is revealed
     for state in ["vent:open", "vent:flashed", "fuse box:power on"]:
         assert state in art.sprites, state
+
+
+def play_into(player: Player, win_script: list[str], name: str) -> list[str]:
+    """Play the win script until the player stands in the room called `name`; return the
+    lines still to play."""
+    for index, line in enumerate(win_script):
+        if player.current_room.name == name:
+            return win_script[index:]
+        play_turn(player, line)
+    raise AssertionError(f"the win script never reaches the {name}")
+
+
+def test_every_step_in_the_darkroom_shows_in_its_picture(
+    world: World, player: Player, win_script: list[str]
+) -> None:
+    rest = play_into(player, win_script, "Darkroom")
+    room = player.current_room
+    art = world.art_for(room)
+    assert all(cell_len(row) == SCREEN_WIDTH for row in art.background)
+    seen = {"\n".join(compose(art, room))}
+    for line in rest:
+        play_turn(player, line)
+        if player.current_room is not room:
+            break
+        picture = "\n".join(compose(art, room))
+        assert picture not in seen or line.startswith("take"), line
+        seen.add(picture)
+    assert room.door.is_open
+
+
+def test_the_enlarger_lights_its_beam_in_the_darkroom(
+    world: World, player: Player, win_script: list[str]
+) -> None:
+    rest = play_into(player, win_script, "Darkroom")
+    room = player.current_room
+    art = world.art_for(room)
+    assert light_state(art, room) is None
+    for line in rest[: rest.index("use lens on enlarger") + 1]:
+        play_turn(player, line)
+    assert light_state(art, room) == "focused"
+    assert "f" in "".join(light_for(art, room))  # the white beam
+    assert not room.flicker and room.light == "red"
 
 
 # Tone (docs/SCREEN-SPEC.md §5.1)

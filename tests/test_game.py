@@ -142,8 +142,10 @@ def test_a_locked_door_says_locked_before_the_carry_guard() -> None:
 
 def test_unlocking_twice_says_so(player: Player, win_script: list[str]) -> None:
     run(player, *win_script[:-1])
-    player.inventory.pick_up_item(Item("key"))
-    outcome = turn(player, "use key on door")
+    key = player.current_room.door.required_item
+    assert key is not None
+    player.inventory.pick_up_item(Item(key))
+    outcome = turn(player, f"use {key} on door")
     assert outcome.message == "The door is already unlocked." and not outcome.moved
 
 

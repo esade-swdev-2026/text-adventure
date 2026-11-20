@@ -25,7 +25,7 @@ def player(world: World) -> Player:
 
 @pytest.fixture
 def win_script() -> list[str]:
-    """The shortest way out of the built-in world: 12 moves, its par."""
+    """The shortest way out of the built-in world, room by room: as many moves as its par."""
     return [
         "open toolbox",
         "take wrench",
@@ -38,6 +38,19 @@ def win_script() -> list[str]:
         "take key",
         "use fuse on fuse box",
         "use key on door",
+        "open door",
+        # Darkroom
+        "open camera bag",
+        "take lens",
+        "use lens on enlarger",
+        "take negatives",
+        "use negatives on enlarger",
+        "open tray",
+        "use wrench on cabinet",
+        "take tongs",
+        "use tongs on safelight",
+        "take padlock key",
+        "use padlock key on door",
         "open door",
     ]
 

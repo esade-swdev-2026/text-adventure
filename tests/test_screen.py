@@ -381,8 +381,9 @@ def test_win_screen_shows_the_ending_and_no_prompt(
     )
     lines = rows(screen)
     assert screen.prompt == "" and lines[-1] == "Thanks for playing."
-    assert lines[HISTORY_ROW + 2] == "  ✓ Escaped in 12 moves. Par is 12. Sharp."
-    assert lines[0].endswith(" 12 moves ─╮")
+    moves = len(win_script)
+    assert lines[HISTORY_ROW + 2] == f"  ✓ Escaped in {moves} moves. Par is {moves}. Sharp."
+    assert lines[0].endswith(f" {moves} moves ─╮")
     assert len(lines) == BLOCK_HEIGHT
 
 

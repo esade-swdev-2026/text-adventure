@@ -1,0 +1,9 @@
+[default]
+╭─╮
+│o├━━━┳━┓
+╰─╯   ┃ ╹
+
+[default:colors]
+fff
+f9fffffff
+fff   f f

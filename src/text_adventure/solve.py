@@ -1,11 +1,12 @@
-"""Find the shortest way to win a world, for `check`. Plays copies of the game; never prints."""
+"""Find the shortest way to win a world, for `check`. Plays a copy of the game; never prints."""
 
 from collections import deque
 from copy import deepcopy
+from dataclasses import dataclass
 
 from .commands import Command, Verb
-from .game import apply_command
-from .models import DOOR, Inventory, Item, Player
+from .game import Outcome, apply_command
+from .models import DOOR, Inventory, Item, Player, Room
 from .world import World
 
 type StateKey = tuple[object, ...]
@@ -51,6 +52,64 @@ def _candidates(player: Player) -> list[Command]:
     return commands
 
 
+@dataclass(frozen=True)
+class _Snapshot:
+    """Everything play can change, saved so the game can be put back exactly."""
+
+    room: Room
+    moves: int
+    lists: tuple[tuple[list[Item], tuple[Item, ...]], ...]  # each item list and what was in it
+    flags: tuple[tuple[object, str, object], ...]  # (object, attribute, value)
+
+
+class _Game:
+    """One live copy of the world that the search plays on, saving and restoring its state.
+
+    Copying the whole game for every try was nearly all of the search's work. Play only moves
+    items between lists, sets a few flags and gives objects story states, so those are what
+    `save` keeps and `restore` puts back; the texts and rules are never touched.
+    """
+
+    def __init__(self, world: World) -> None:
+        self.player = deepcopy(Player(world.first_room, Inventory()))
+        self.rooms: list[Room] = []
+        room: Room | None = self.player.current_room
+        while room is not None and room not in self.rooms:
+            self.rooms.append(room)
+            room = room.door.next_room
+        self.lists = [self.player.inventory.items]
+        self.switches: list[tuple[object, str]] = []
+        for room in self.rooms:
+            self.lists += [room.items, room.hidden]
+            self.switches += [(room.door, "is_unlocked"), (room.door, "is_open")]
+            for container in room.containers:
+                self.lists += [container.contents, container.hidden]
+                self.switches += [(container, "is_open"), (container, "story")]
+        items = {id(item): item for items in self.lists for item in items}
+        self.switches += [(item, "story") for item in items.values()]
+
+    def save(self) -> _Snapshot:
+        return _Snapshot(
+            self.player.current_room,
+            self.player.moves,
+            tuple((items, tuple(items)) for items in self.lists),
+            tuple((thing, name, getattr(thing, name)) for thing, name in self.switches),
+        )
+
+    def restore(self, snapshot: _Snapshot) -> None:
+        self.player.current_room = snapshot.room
+        self.player.moves = snapshot.moves
+        for items, saved in snapshot.lists:
+            items[:] = saved
+        for thing, name, value in snapshot.flags:
+            setattr(thing, name, value)
+
+    def try_command(self, snapshot: _Snapshot, command: Command) -> Outcome:
+        """Play the command from the saved state. `save` keeps the state it leads to."""
+        self.restore(snapshot)
+        return apply_command(self.player, command)
+
+
 def command_text(command: Command) -> str:
     """The command as a player would type it: "use fuse on fuse box"."""
     text = f"{command.verb.value} {command.name}"
@@ -59,39 +118,44 @@ def command_text(command: Command) -> str:
 
 def reachable(world: World) -> list[Player]:
     """One copy of the game in every state the player can reach before winning."""
-    start = deepcopy(Player(world.first_room, Inventory()))
-    found, seen = [start], {_key(start)}
-    for player in found:  # grows while it is walked: a breadth-first search
-        for command in _candidates(player):
-            after = deepcopy(player)
-            outcome = apply_command(after, command)
-            if outcome.moved and not outcome.won and _key(after) not in seen:
-                seen.add(_key(after))
-                found.append(after)
-    return found
+    game = _Game(world)
+    found, seen = [game.save()], {_key(game.player)}
+    for snapshot in found:  # grows while it is walked: a breadth-first search
+        game.restore(snapshot)
+        for command in _candidates(game.player):
+            outcome = game.try_command(snapshot, command)
+            if outcome.moved and not outcome.won and _key(game.player) not in seen:
+                seen.add(_key(game.player))
+                found.append(game.save())
+    players = []
+    for snapshot in found:
+        game.restore(snapshot)
+        players.append(deepcopy(game.player))
+    return players
 
 
 def shortest_win(world: World) -> list[str] | None:
     """The fewest commands that win, as typed, or None if the world can't be won.
 
     A breadth-first search over game states: every command that counts as a move is tried
-    on a copy of the game, and states already seen are skipped.
+    from a saved state, and states already seen are skipped.
     """
-    start = deepcopy(Player(world.first_room, Inventory()))
-    queue: deque[tuple[Player, list[str]]] = deque([(start, [])])
-    seen = {_key(start)}
+    game = _Game(world)
+    start = game.save()
+    queue: deque[tuple[_Snapshot, list[str]]] = deque([(start, [])])
+    seen = {_key(game.player)}
     while queue:
-        player, route = queue.popleft()
-        for command in _candidates(player):
-            after = deepcopy(player)
-            outcome = apply_command(after, command)
+        snapshot, route = queue.popleft()
+        game.restore(snapshot)
+        for command in _candidates(game.player):
+            outcome = game.try_command(snapshot, command)
             if not outcome.moved:
                 continue
             steps = [*route, command_text(command)]
             if outcome.won:
                 return steps
-            key = _key(after)
+            key = _key(game.player)
             if key not in seen:
                 seen.add(key)
-                queue.append((after, steps))
+                queue.append((game.save(), steps))
     return None
