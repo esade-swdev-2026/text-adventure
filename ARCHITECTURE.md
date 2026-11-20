@@ -445,6 +445,9 @@ without touching the default one.
 - a `required_item` names an item that doesn't exist anywhere in the world;
 - a door has no `required_item`;
 - a field has the wrong type, or the art file lacks a sprite section that `sprite` needs;
+- the art file has a `[light:<state>]` for a state no container or door in the room reaches, or
+  any other section that isn't the sprite of a real object in a real state (a typo like
+  `[lihgt]`);
 - a name contains `on`, `in` or `with`, or `par` isn't a whole number ≥ 1;
 - a `use` names an item that doesn't exist, an object has two rules for the same item, or a
   rule is written for the lock's own `required_item`;

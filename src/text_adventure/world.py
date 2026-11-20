@@ -447,9 +447,9 @@ def _check_needs(needs: Mapping[str, str], where: str, states: dict[str, set[str
             raise WorldError(f'{where}: "{name}" is never "{state}"')
 
 
-def _check_room_uses(room: Room, item_names: set[str]) -> None:
+def _check_room_uses(room: Room, item_names: set[str]) -> dict[str, set[str]]:
     """Every `use` names real things, every hidden item can be revealed, and every state named
-    in "needs" or "inspect" is one the object can really be in."""
+    in "needs" or "inspect" is one the object can really be in. Return every object's states."""
     where = f'room "{room.name}"'
     things = _room_things(room)
     hidden = {item.name for item in room.hidden}
@@ -487,6 +487,25 @@ def _check_room_uses(room: Room, item_names: set[str]) -> None:
                 raise WorldError(
                     f'{where}: "{name}" has a {key} for "{state}", a state it is never in'
                 )
+    return states
+
+
+def _check_art_sections(room: Room, art: Art, states: Mapping[str, set[str]]) -> None:
+    """Every "[light:<state>]" is a state a container or the door can reach, and every other
+    section is the sprite of a real object in a real state, so a typo is an error instead of
+    a section that never shows (docs/SCREEN-SPEC.md §5.2)."""
+    where = f'room "{room.name}"'
+    switches = {name for name, thing in _room_things(room).items() if not isinstance(thing, Item)}
+    reachable = set().union(*(states[name] for name in switches))
+    for state in art.lights:
+        if state not in reachable:
+            raise WorldError(
+                f"{where}: [light:{state}] is for a state no container or door is ever in"
+            )
+    for key in art.sprites:
+        name, _, state = key.partition(":")
+        if name not in states or (state and state not in states[name]):
+            raise WorldError(f"{where}: [{key}] is not the sprite of any object in this room")
 
 
 def _link_doors(rooms: dict[str, Room], next_ids: dict[str, str | None]) -> None:
@@ -575,7 +594,7 @@ def build_world(
     _check_required_items_exist(rooms.values())
     item_names = {item.name for item in _all_items(rooms.values())}
     for room in rooms.values():
-        _check_room_uses(room, item_names)
+        _check_art_sections(room, room_art[room.name], _check_room_uses(room, item_names))
     _link_doors(rooms, next_ids)
     return World(
         rooms[next(iter(rooms))],
