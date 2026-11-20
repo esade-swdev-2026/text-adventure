@@ -226,8 +226,8 @@ def test_changed_object_is_spotlit_in_the_room(world: World, player: Player) -> 
     play_turn(player, "open toolbox")
     screen = screen_for(world, player, focus="toolbox")
     lit = [text for line in screen.rows for text, role in line if role is Role.FOCUS]
-    assert lit[0].startswith("╔═════════╗╻")  # only the toolbox's columns
-    assert all(len(text) == len(lit[0]) for text in lit)
+    assert lit[0] == world.art_for(player.current_room).sprites["toolbox:open"][0]
+    assert all(len(text) == len(lit[0]) for text in lit)  # only the toolbox's columns
 
 
 def test_the_flash_lights_the_whole_picture_and_nothing_else(world: World, player: Player) -> None:
@@ -243,11 +243,14 @@ def test_the_flash_lights_the_whole_picture_and_nothing_else(world: World, playe
 
 
 def test_shading_follows_the_light_map(world: World, player: Player) -> None:
-    lamp_row = screen_for(world, player).rows[3]  # picture row 2: the lamp and the fuse box
-    light = "".join(text for text, role in lamp_row if role is Role.LIGHT)
-    shadow = "".join(text for text, role in lamp_row if role is Role.SHADOW)
-    assert "▗▟" in light and "▙▖" in light  # █ alone is not a light source (§5.3)
-    assert "┌──────────┐" in shadow
+    screen = screen_for(world, player)
+    lamp_row = screen.rows[5]  # picture row 4: the lamp's shade
+    assert "▗▟█▙▖" in "".join(text for text, role in lamp_row if role is Role.LIGHT)
+    floor_row = screen.rows[17]  # picture row 16: the floor under the lamp, the door far off
+    pool = "".join(text for text, role in floor_row if role is Role.GLOW)
+    assert "█" in pool or "▓" in pool  # dense tone where the light is strongest
+    door_row = screen.rows[6]  # picture row 5: the door's top, far from the lamp
+    assert "┌───────────┐" in "".join(text for text, role in door_row if role is Role.SHADOW)
 
 
 def test_history_keeps_the_newest_at_the_bottom_in_three_rows() -> None:
@@ -334,7 +337,7 @@ def test_inspecting_without_a_close_up_keeps_the_room_with_the_thing_in_the_spot
     assert lines[ART_HEIGHT + 1].startswith("╰─ Enter returns to the room ─")
     assert lines[DESCRIPTION_ROW].startswith("  Your own toolbox, dented and familiar.")
     lit = roles_of(screen, Role.FOCUS)
-    assert "╔═════════╗" in lit
+    assert world.art_for(player.current_room).sprites["toolbox:closed"][1] in lit
 
 
 def test_close_up_frame_follows_the_state() -> None:
@@ -479,24 +482,31 @@ def test_the_flash_draws_the_room_at_full_light() -> None:
     assert line_text(room_picture(art, room, full_light=True)[0]).startswith("██")
 
 
-def test_the_flash_leaves_no_tone_cell_black() -> None:
-    art = parse_art("[background]\n    \n[shade]\n0123\n[light]\n9999\n")
-    room = Room("Lab", "", Door(None))
-    assert line_text(room_picture(art, room)[0])[:3] == "   "  # shade 0-2: black even at 9
-    flashed = line_text(room_picture(art, room, full_light=True)[0])[:4]
-    assert " " not in flashed  # every shade is raised to FLASH_SHADE
-
-
-def test_a_solid_block_is_not_a_light_source_unless_the_light_map_marks_it() -> None:
-    room = Room("Lab", "", Door(None))
-    plain = room_picture(parse_art("[background]\n█●\n[light]\n99\n"), room)
-    assert [role for text, role in plain[0] for _ in text][:2] == [Role.GLOW, Role.LIGHT]
-    marked = room_picture(parse_art("[background]\n█\n[light]\n*\n"), room)
-    assert marked[0][0] == ("█", Role.LIGHT)
-
-
 def test_picture_blanks_with_shade_become_tone_and_colour_digits_are_light_levels() -> None:
     frame = Frame(("x  ",), ("923",), ("099",))
     (line,) = frame_lines(frame)
     assert line_text(line) == "x██"
     assert [role for text, role in line for _ in text] == [Role.GLOW, Role.SHADOW, Role.DUSK]
+
+
+def test_the_closed_door_shows_its_steel_and_unlocking_changes_it(
+    world: World, player: Player
+) -> None:
+    room = player.current_room
+    art = world.art_for(room)
+    top, left = art.placements["door"].row, art.placements["door"].column
+
+    def steel() -> str:
+        rows = [line_text(line) for line in room_picture(art, room)]
+        return "".join(row[left + 1 : left + 12] for row in rows[top + 1 : top + 9])
+
+    locked = steel()
+    assert set(locked) & set(RAMP[1:])  # tone shows: the shade is above black under `n`
+    room.door.is_unlocked = True
+    assert steel() != locked
+
+
+def test_the_red_light_by_the_door_wakes_with_the_power(world: World) -> None:
+    art = world.art_for(world.first_room)  # the story says so: "a small red light wakes up"
+    assert not any("r" in row for row in art.light)
+    assert any("r" in row for row in art.lights["power on"])

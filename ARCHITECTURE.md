@@ -502,6 +502,10 @@ Plain UTF-8 text, split into sections by a `[name]` line:
 - `[light:<state>]` replaces `[light]` while any object in the room is in that state, e.g.
   `[light:power on]`. A sprite can have its own shade map, `[name:<state>:shade]`, for the
   blanks inside its outline (black without one).
+- The `[shade]`, `[light]` and `[light:power on]` maps are drafted by
+  `scripts/bake_light.py` from a scene file (`scripts/scenes/electrical_room.toml`: the wall's
+  frame, a shade per surface, the lamp, marks) and then edited by hand. The script is a
+  development tool outside the package; the game only reads the art file.
 - A container or the door needs `[name:closed]` and `[name:open]`. An item needs `[name]`; it
   is drawn inside its open container, or on the floor.
 - Spaces before and after each sprite row's outline are transparent, so the background shows
