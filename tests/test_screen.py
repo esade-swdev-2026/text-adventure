@@ -246,7 +246,7 @@ def test_shading_follows_the_light_map(world: World, player: Player) -> None:
     lamp_row = screen_for(world, player).rows[3]  # picture row 2: the lamp and the fuse box
     light = "".join(text for text, role in lamp_row if role is Role.LIGHT)
     shadow = "".join(text for text, role in lamp_row if role is Role.SHADOW)
-    assert "▗▟█▙▖" in light
+    assert "▗▟" in light and "▙▖" in light  # █ alone is not a light source (§5.3)
     assert "┌──────────┐" in shadow
 
 
@@ -477,6 +477,22 @@ def test_the_flash_draws_the_room_at_full_light() -> None:
     room = Room("Lab", "", Door(None))
     assert line_text(room_picture(art, room)[0]).startswith("  ")  # dark: black
     assert line_text(room_picture(art, room, full_light=True)[0]).startswith("██")
+
+
+def test_the_flash_leaves_no_tone_cell_black() -> None:
+    art = parse_art("[background]\n    \n[shade]\n0123\n[light]\n9999\n")
+    room = Room("Lab", "", Door(None))
+    assert line_text(room_picture(art, room)[0])[:3] == "   "  # shade 0-2: black even at 9
+    flashed = line_text(room_picture(art, room, full_light=True)[0])[:4]
+    assert " " not in flashed  # every shade is raised to FLASH_SHADE
+
+
+def test_a_solid_block_is_not_a_light_source_unless_the_light_map_marks_it() -> None:
+    room = Room("Lab", "", Door(None))
+    plain = room_picture(parse_art("[background]\n█●\n[light]\n99\n"), room)
+    assert [role for text, role in plain[0] for _ in text][:2] == [Role.GLOW, Role.LIGHT]
+    marked = room_picture(parse_art("[background]\n█\n[light]\n*\n"), room)
+    assert marked[0][0] == ("█", Role.LIGHT)
 
 
 def test_picture_blanks_with_shade_become_tone_and_colour_digits_are_light_levels() -> None:

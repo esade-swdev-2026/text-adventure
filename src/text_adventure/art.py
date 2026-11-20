@@ -404,7 +404,9 @@ def compose_shade(art: Art, room: Room) -> list[str]:
 
 def light_for(art: Art, room: Room) -> tuple[str, ...]:
     """The light map in use: "[light:<state>]" while an object in the room is in that state
-    (power-on lighting), otherwise "[light]"."""
+    (power-on lighting), otherwise "[light]". If objects in different states each have a map,
+    the first container in world.json order wins, then the door; items never pick one
+    (docs/SCREEN-SPEC.md §5.2)."""
     states = [container.state for container in room.containers] + [room.door.state]
     for state in states:
         if state in art.lights:
