@@ -128,7 +128,7 @@ def test_the_door_wont_open_while_a_tool_the_next_room_needs_is_left_behind() ->
     moves = player.moves
     outcome = turn(player, "open door")
     assert outcome.error and not outcome.moved
-    assert outcome.message == "You'll want the rope. Better not leave it behind."
+    assert outcome.message == "You'll want the rope where you're going."
     assert player.current_room.name == "Shed" and player.moves == moves
     assert not player.current_room.door.is_open
     run(player, "take rope")

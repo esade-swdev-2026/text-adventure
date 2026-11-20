@@ -128,7 +128,7 @@ def _open(player: Player, name: str) -> Outcome:
         if not door.is_unlocked:
             return Outcome("The door is locked.", error=True)
         if door.next_room is not None and (missing := door.left_behind(player.inventory)):
-            return Outcome(f"You'll want the {missing[0]}. Better not leave it behind.", error=True)
+            return Outcome(f"You'll want the {missing[0]} where you're going.", error=True)
         door.open()
         if door.next_room is None:
             return Outcome("The door swings open. You're out.", won=True, subject=DOOR, moved=True)

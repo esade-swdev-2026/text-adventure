@@ -32,7 +32,7 @@ The three requirements from the assignment map onto this directly:
 | Version | Scope | Status |
 |---|---|---|
 | **v0.5** | **One room, fully playable from start to win**, with a drawn screen: art that changes with the room's state, a live description, and the exact commands you can type. Uses every mechanic: containers, a locked container, items, the 4-slot inventory and a locked door. | Done |
-| **v1.0** | Three rooms in a row and the chosen story. The engine already links rooms through doors (`next_room`), so this is mostly data: two more rooms in `world.json`, their art files, and the loader rule going back to "exactly three rooms". | Next |
+| **v1.0** | Three rooms in a row: the Electrical Room, the Darkroom and the Night Office (E8). Mostly data: two more rooms in `world.json` with their art, icons and close-ups. The engine gained a door's `carry` (a one-way door won't let you leave a tool the next room needs), and a room's `flicker` and `light` colour. | Done |
 
 ---
 
@@ -230,7 +230,7 @@ Dependencies only point downward. Lower layers know nothing about the layers abo
 |-------------|---------------|-------------------------------------------------------------------------|
 | `Item`      | `models.py`   | Name, description, `portable` flag, `floor_text` (its sentence while on the floor), `details` (inspect texts by state), `uses`, `refusal`, and a `story` state a `use` may set (`state`). |
 | `Container` | `models.py`   | Name, open/closed, optional `required_item` (a name) with `needs` / `refusal`, `contents`, `hidden` items, `closed_text` / `open_text`, `room_texts` (its room sentence by state, `room_sentence()`), `details`, `uses`, and `state`: its story state, else `open` / `closed`. |
-| `Door`      | `models.py`   | `required_item`, `needs` / `refusal`, `unlock_text`, `room_texts`, `details`, `uses`, `next_room` (a `Room`, or `None` for the exit), `is_unlocked`, `is_open`, and `state`: `locked` / `unlocked` / `open`. |
+| `Door`      | `models.py`   | `required_item`, `needs` / `refusal`, `unlock_text`, `room_texts`, `details`, `uses`, `carry` (tools the next room needs; `left_behind(inventory)` lists the missing ones), `next_room` (a `Room`, or `None` for the exit), `is_unlocked`, `is_open`, and `state`: `locked` / `unlocked` / `open`. |
 | `Use`       | `models.py`   | One rule from `world.json`: the `item` used (or `None` for an item's own use), `text`, `needs` and `refusal`, the new story `state`, the names to `reveal`, whether the item is `consume`d and whether the screen `flash`es. |
 | `Room`      | `models.py`   | Name, mood description, containers, loose items, `hidden` loose items, one door. `remove_item` takes an item off the floor or out of an open container; `reveal(name)` brings a hidden item into sight. |
 | `Inventory` | `models.py`   | Up to `CAPACITY = 4` items. Add, find by name, count, use up, drop, list. Refuses a fifth. |
@@ -282,7 +282,7 @@ are. Ctrl-C and Ctrl-D end the game the same way as `quit`.
 |-------------|------------------------------------------------------------|-------------------------------------------------------------|-------------------------------------------------|
 | `LOOK`      | —                                                          | Redraws the screen ("You look around.").                    | —                                               |
 | `INSPECT`   | the door, a container, a visible item or a carried one     | The thing's `inspect` text for its state (or its plain description), with an `Inspection`. | Not visible → "There is no X here." |
-| `OPEN`      | `door` → `room.door.open()`                                | If `door.is_exit()`: the player wins. Otherwise `player.current_room = door.next_room`. | Still locked → "The door is locked." |
+| `OPEN`      | `door` → `room.door.open()`                                | If `door.is_exit()`: the player wins. Otherwise `player.current_room = door.next_room`. | Still locked → "The door is locked." A `carry` tool not in hand → "You'll want the X where you're going." (not a move) |
 | `OPEN`      | other name → `room.find_container(name)`, then `container.open(inventory)` | "You open the X. Inside: …" (or "It's empty.", or "You can't make anything out." while something hides in it). Already open → "The X is already open." | Not found → "There is no X here." No tool → "The X is locked." `needs` not met → its `refusal`. |
 | `USE`       | the carried item, then the target's `uses` rule for it      | The rule's `text`; its `state`, `reveal` and `consume` are applied. With no rule, the lock's own tool works like `open` (container) or unlocks the door (if its `needs` are met; the key is used up). | See the error table in section 3. |
 | `TAKE`      | `room.find_visible_item(name)`, then `player.take_item(item)` | "You take the Y."                                        | Not found → "There is no Y here." `ValueError` → its message (hands full, can't be carried). |
@@ -436,7 +436,11 @@ without touching the default one.
 ```
 
 - `rooms` is in play order. The first room is where the player starts.
-- `door.next_room` is another room's `id`, or `null` for the final exit.
+- `door.next_room` is another room's `id`, or `null` for the final exit. Doors are one-way.
+- `door.carry` (optional) lists tools the next room needs; the door won't open while one of
+  them is left behind, so the player can't get stuck (SCREEN-SPEC §5.7).
+- A room's `light` is `"amber"` (the default) or `"red"` (the darkroom's safelight), and
+  `flicker` (default `true`) turns the lamp flicker off for a room whose light is steady.
 - `required_item` is an item `name`, or `null`. Doors always need one (decision 1).
 - `portable` defaults to `true`. `floor_text`, `closed_text` and `open_text` can be left out;
   a plain sentence ("There is a desk.") is used instead.
@@ -473,7 +477,10 @@ without touching the default one.
 `build_world` builds every object first, then links each door to its `next_room`. It raises
 `WorldError` with a clear message if:
 
-- there are no rooms (v0.5 has one room; v1.0 will require three);
+- there are no rooms;
+- a door's `carry` names an item that isn't in this room or an earlier one, or one the next
+  room never uses, or the last door carries anything;
+- a room's `light` is not `amber` or `red`;
 - a `next_room` id doesn't exist, or any door other than the last room's leads to `null`;
 - two items or containers share a name, or any of them is called `door`;
 - a name isn't lower case or has leading, trailing or double spaces (it couldn't be typed to
@@ -504,7 +511,10 @@ drawn after the format (E2.4, E3.2).
 
 The loader does **not** check that the puzzle can be solved; `check` does. After loading,
 `check` runs `solve.shortest_win`, a breadth-first search over every reachable game state
-(each `open`, `take`, `drop` and `use` the player could try). It exits 1 with
+(each `open`, `take`, `drop` and `use` the player could try). It plays one copy of the world,
+saving and restoring only what play can change (which list each item is in, the open and
+locked flags, story states), because copying the whole game for every try was too slow once
+there were three linked rooms. It exits 1 with
 `Error: <file>: the world can't be won` if no route wins, or
 `Error: <file>: par is P, but the shortest win takes N moves` if `par` is below the best
 route. Otherwise it prints `The shortest win takes N moves. Par is P.` after the summary.
@@ -591,16 +601,38 @@ The packaged world has one example of each: `art/icons/screwdriver.txt` and
 ### The Electrical Room puzzle
 
 Somebody ("V.") pulled the fuse, hid it in the vent and left you locked in with the key. The
-way out, at par 12:
+way out of the first room, in 12 moves:
 
 1. `open toolbox` → `take wrench` → `open vent` (pitch black inside).
 2. `take flashbulb` → `use flashbulb on vent`: the flash (used up) reveals the hidden fuse.
 3. `take fuse` → `take screwdriver` → `open fuse box` → `take key`.
 4. `use fuse on fuse box`: the power comes back (`power on`).
-5. `use key on door` (only with power; the key stays in the lock) → `open door`. **You win.**
+5. `use key on door` (only with power; the key stays in the lock) → `open door` into the Darkroom.
 
-Every item has one job, and the clues for each step are in the `inspect` texts. At most 4
-items are carried at once on the best route, so the inventory limit still bites on others.
+Every item has one job, and the clues for each step are in the `inspect` texts. The wrench
+also opens the darkroom's cabinet, so the door won't open without it (`carry`).
+
+### The Darkroom puzzle
+
+V. photographed you asleep tonight. Red safelight, no flicker. The way through, 12 moves:
+
+1. `open camera bag` → `take lens` → `use lens on enlarger`: a white beam on the easel.
+2. `take negatives` → `use negatives on enlarger`: a print appears in the tray.
+3. `open tray`: the photograph (close-up) shows a gloved hand behind the safelight.
+4. `use wrench on cabinet` → `take tongs` → `use tongs on safelight` (only once the photo is
+   seen): a padlock key drops.
+5. `take padlock key` → `use padlock key on door` → `open door` (with the tongs: `carry`).
+
+### The Night Office puzzle
+
+The night watchman's office, neon through the blinds. 12 moves to the street:
+
+1. `use tongs on radiator` (the tongs are used up) → `take matchbook` (close-up: V.'s note).
+2. `use matchbook on lantern`: the room lights up and shows the shutter key on a nail.
+3. `take shutter key` → `open coat` → `take desk key` → `open desk`.
+4. `drop` a spent tool (the hands are full) → `take letter opener` →
+   `use letter opener on alarm panel`.
+5. `use shutter key on door` (only with the alarm dead) → `open door`. **You win**, par 36.
 
 ---
 
@@ -617,7 +649,7 @@ The story can change without touching code because everything about it lives in 
 
 Any story fits, as long as its `world.json`:
 
-- has its rooms in play order (three for v1.0), each with a locked door;
+- has its rooms in play order, each with a locked door;
 - makes every door's required item obtainable in that room or an earlier one;
 - never needs more than 4 items carried at the same time;
 - uses short, lower-case names the player can guess and type, each used only once, and none

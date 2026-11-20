@@ -22,7 +22,8 @@ art). Where a rule can be checked in code, a test checks it (section 12).
 >
 > **More rooms (E8)** adds the Darkroom and the Night Office after the Electrical Room
 > (section 5.7): a light colour and a flicker switch per room, and a door that won't let the
-> player leave a needed tool behind. Not built yet.
+> player leave a needed tool behind. Built: the engine (E8.2), the Darkroom (E8.3) and the
+> Night Office (E8.4), with icons and the photograph and matchbook close-ups.
 
 Rows and columns are counted from 1, inside the **screen block** (section 2), top-left first.
 
@@ -446,7 +447,7 @@ Night Office → the street**. Doors are one-way: once through, the player never
   |---|---|---|---|
   | Electrical Room | amber lamp | yes, until the power is on | `[light:power on]` |
   | Darkroom | red safelight, `"light": "red"` (section 6) | no: a safelight burns steady | the enlarger's white beam, `[light:focused]` / `[light:printed]` in `f` (PLAIN) |
-  | Night Office | neon through the blinds in `n` stripes, plus an amber lantern | yes: the neon buzzes | `[light:lit]`: the lantern lights the room |
+  | Night Office | neon through the blinds in `n` stripes, plus an amber lantern | no: a dip lowers light digits only, so the `n` neon would not change | `[light:lit]`: the lantern lights the room |
 
 - **`"flicker"`** (room, default `true`) switches the flicker off for a room whose light is
   steady. `flicker_wanted` reads it (5.6).
@@ -454,7 +455,7 @@ Night Office → the street**. Doors are one-way: once through, the player never
   LIGHT roles in that room's picture (section 6). Icons and close-ups keep the amber scale.
 - **The carry guard.** A door can list `"carry": ["wrench"]`: tools the next room needs. While
   one of them is not in the inventory, `open door` is refused and doesn't count as a move:
-  `✗ You'll want the wrench. Better not leave it behind.` So the player can't get stuck behind
+  `✗ You'll want the wrench where you're going.` So the player can't get stuck behind
   a one-way door. `build_world` checks that each carried name exists in this room or an earlier
   one, that the next room uses it, and that the last door carries nothing.
 - **A door that leads on** has `[door:open]` drawn as a dark doorway, not the night: the night
@@ -725,7 +726,7 @@ rest of the screen doesn't change. Errors are states, not crashes.
   ✗ Take what?
   ✗ The fuse box is locked.
   ✗ Your hands are full. Drop something to take the flashbulb.
-  ✗ You'll want the wrench. Better not leave it behind.
+  ✗ You'll want the wrench where you're going.
 ```
 
 ### Full inventory

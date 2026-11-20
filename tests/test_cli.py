@@ -61,8 +61,8 @@ def test_invalid_json_exits_1(tmp_path: Path) -> None:
 def test_check_prints_a_summary() -> None:
     result = runner.invoke(app, ["check", "src/text_adventure/world.json"])
     assert result.exit_code == 0
-    assert "2 room(s), 7 containers and 11 items" in result.output
-    assert "The shortest win takes 24 moves. Par is 24." in result.output
+    assert "3 room(s), 11 containers and 16 items" in result.output
+    assert "The shortest win takes 36 moves. Par is 36." in result.output
 
 
 def test_check_warns_about_missing_pictures_but_exits_0() -> None:
@@ -157,4 +157,4 @@ def test_the_world_runs_from_a_folder_outside_the_package(tmp_path: Path) -> Non
     shutil.copytree(package / "art", tmp_path / "art")
     result = runner.invoke(app, ["check", str(tmp_path / "world.json")])
     assert result.exit_code == 0, result.output
-    assert "2 room(s), 7 containers and 11 items" in result.output
+    assert "3 room(s), 11 containers and 16 items" in result.output

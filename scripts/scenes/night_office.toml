@@ -1,0 +1,86 @@
+# Scene for scripts/bake_light.py: the night office (src/text_adventure/art/night_office.txt).
+# Rows and columns count from 0 inside the 92 × 24 picture.
+
+width = 92
+height = 24
+
+# The back wall's frame, as drawn in [background]: the same box as the electrical room.
+[wall]
+top = 3
+bottom = 14
+left = 14
+right = 77
+
+[shade]
+ceiling = 3
+back_wall = 5
+side_walls = 4
+floor = 7
+plank = -1
+seam = 1
+
+# The street's glow through the window: weak, so the room stays cold (SHADOW and DUSK).
+[[lamps]]
+row = 8
+column = 39
+reach = 16.0
+cone = 1.1
+glow = 0.35
+power = 0.5
+
+# Neon between the slats of the blinds.
+[[marks]]
+rows = [6, 6]
+columns = [31, 47]
+letter = "n"
+
+[[marks]]
+rows = [8, 8]
+columns = [31, 47]
+letter = "n"
+
+# The same stripes thrown across the floor, slanting away from the window.
+[[marks]]
+rows = [17, 17]
+columns = [27, 43]
+letter = "n"
+
+[[marks]]
+rows = [19, 19]
+columns = [22, 40]
+letter = "n"
+
+[[marks]]
+rows = [21, 21]
+columns = [17, 37]
+letter = "n"
+
+# Inside the door frame is night blue, as in the electrical room.
+[[marks]]
+rows = [6, 13]
+columns = [64, 74]
+letter = "n"
+
+# The alarm panel's light, armed.
+[[marks]]
+rows = [6, 6]
+columns = [55, 55]
+letter = "r"
+
+# The lantern lit: a warm pool over the desk, and enough light to see the walls by.
+[[light_state]]
+state = "lit"
+ambient = 3
+
+[[light_state.lamps]]
+row = 14
+column = 55
+reach = 20.0
+cone = 1.5
+glow = 0.5
+power = 0.85
+
+[[light_state.marks]]
+rows = [14, 14]
+columns = [55, 55]
+letter = "*"

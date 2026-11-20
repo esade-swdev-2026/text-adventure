@@ -268,10 +268,13 @@ def play_into(player: Player, win_script: list[str], name: str) -> list[str]:
     raise AssertionError(f"the win script never reaches the {name}")
 
 
-def test_every_step_in_the_darkroom_shows_in_its_picture(
-    world: World, player: Player, win_script: list[str]
+@pytest.mark.parametrize("name", ["Darkroom", "Night Office"])
+def test_every_step_in_a_later_room_shows_in_its_picture(
+    world: World, player: Player, win_script: list[str], name: str
 ) -> None:
-    rest = play_into(player, win_script, "Darkroom")
+    # A tool carried in from an earlier room has no place on this room's floor, so dropping
+    # it shows only in the description ("On the floor: wrench").
+    rest = play_into(player, win_script, name)
     room = player.current_room
     art = world.art_for(room)
     assert all(cell_len(row) == SCREEN_WIDTH for row in art.background)
@@ -281,9 +284,25 @@ def test_every_step_in_the_darkroom_shows_in_its_picture(
         if player.current_room is not room:
             break
         picture = "\n".join(compose(art, room))
-        assert picture not in seen or line.startswith("take"), line
+        assert picture not in seen or line.startswith(("take", "drop")), line
         seen.add(picture)
     assert room.door.is_open
+
+
+def test_the_lantern_lights_the_night_office_and_shows_the_key(
+    world: World, player: Player, win_script: list[str]
+) -> None:
+    rest = play_into(player, win_script, "Night Office")
+    room = player.current_room
+    art = world.art_for(room)
+    assert light_state(art, room) is None
+    for line in rest[: rest.index("use matchbook on lantern") + 1]:
+        play_turn(player, line)
+    assert light_state(art, room) == "lit"
+    place = art.placements["shutter key"]
+    key = art.sprites["shutter key"][0]
+    row = compose(art, room)[place.row]
+    assert row[place.column : place.column + len(key)] == key
 
 
 def test_the_enlarger_lights_its_beam_in_the_darkroom(

@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from text_adventure.art import CLOSEUP, ICON, parse_art, parse_picture
+from text_adventure.art import CLOSEUP, ICON, floor_key, parse_art, parse_picture
 from text_adventure.game import play_turn
 from text_adventure.models import Player, Thing
 from text_adventure.screen import describe_room, object_sentences
@@ -235,8 +235,9 @@ def test_rooms_must_be_a_non_empty_list() -> None:
 
 def test_summarize_counts_rooms_containers_and_items(world: World) -> None:
     summary = summarize(world)
-    # Hidden items count too: the fuse, the photograph and the padlock key.
-    assert (summary.rooms, summary.containers, summary.items) == (2, 7, 11)
+    # Hidden items count too: the fuse, the photograph, the padlock key, the matchbook and
+    # the shutter key.
+    assert (summary.rooms, summary.containers, summary.items) == (3, 11, 16)
     assert summary.first_room == "Electrical Room"
 
 
@@ -392,3 +393,12 @@ def test_flicker_and_light_default_to_a_flickering_amber_room() -> None:
 def test_flicker_and_light_are_checked(change: dict[str, Any], message: str) -> None:
     with pytest.raises(WorldError, match=re.escape(message)):
         build_world(broken(lambda room: room.update(change)), ART)
+
+
+def test_loose_items_in_the_built_in_world_are_drawn_where_they_start(world: World) -> None:
+    # A loose item with a "floor" place is drawn there, not at its "sprite", from the start:
+    # the negatives on the line and the key on its nail would lie on the floor instead.
+    for room in world.rooms():
+        placements = world.art_for(room).placements
+        for item in room.items + room.hidden:
+            assert floor_key(item.name) not in placements, (room.name, item.name)

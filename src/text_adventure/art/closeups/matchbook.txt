@@ -1,0 +1,52 @@
+[default]
+
+
+                ┌──────────────────────────────────────────────────────────┐
+                │                                                          │
+                │   the lamp in his office. light it,                      │
+                │   and look where the light falls.                        │
+                │                                                          │
+                │   then go. don't wait for me.          - V.              │
+                │                                                          │
+                ╞══════════════════════════════════════════════════════════╡
+                │ ▄▄ ▄▄ ▄▄ ▄▄ ▄▄ ▄▄ ▄▄ ▄▄ ▄▄ ▄▄ ▄▄ ▄▄ ▄▄ ▄▄ ▄▄ ▄▄ ▄▄ ▄▄    │
+                │ ▐▌ ▐▌ ▐▌ ▐▌ ▐▌ ▐▌ ▐▌ ▐▌ ▐▌ ▐▌ ▐▌ ▐▌ ▐▌ ▐▌ ▐▌ ▐▌ ▐▌ ▐▌    │
+                │ ▐▌ ▐▌ ▐▌ ▐▌ ▐▌ ▐▌ ▐▌ ▐▌ ▐▌ ▐▌ ▐▌ ▐▌ ▐▌ ▐▌ ▐▌ ▐▌ ▐▌ ▐▌    │
+                ╞══════════════════════════════════════════════════════════╡
+                │                                                          │
+                │                     T H E   B L U E                      │
+                │                                                          │
+                │                  ▄▀▀ L A N T E R N ▀▀▄                   │
+                │                                                          │
+                │             open till four  ·  no questions              │
+                │                                                          │
+                └──────────────────────────────────────────────────────────┘
+                  ░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░
+
+
+[default:colors]
+
+
+                666666666666666666666666666666666666666666666666666666666666
+                6                                                          6
+                6   fffffffffffffffffffffffffffffffff                      6
+                6   fffffffffffffffffffffffffffffff                        6
+                6                                                          6
+                6   fffffffffffffffffffffffffffffffffffffffff              6
+                6                                                          6
+                555555555555555555555555555555555555555555555555555555555555
+                6 rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr   6
+                6 777777777777777777777777777777777777777777777777777777   6
+                6 777777777777777777777777777777777777777777777777777777   6
+                555555555555555555555555555555555555555555555555555555555555
+                n                                                          n
+                n                     nnnnnnnnnnnnnnn                      n
+                n                                                          n
+                n                  nnnnnnnnnnnnnnnnnnnnn                   n
+                n                                                          n
+                n             nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn              n
+                n                                                          n
+                nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn
+                  44444444444444444444444444444444444444444444444444444444
+
+

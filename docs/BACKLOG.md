@@ -1,6 +1,7 @@
 # Product backlog
 
-Planned features after version 0.5 (one room, playable from start to win).
+Planned features after version 0.5 (one room, playable from start to win). E8 brings the
+three rooms of version 1.0.
 
 **Size:** S = under an hour · M = a few hours · L = a day or more (usually because of art).
 **Priority:** Must · Should · Could.
