@@ -19,6 +19,10 @@ art). Where a rule can be checked in code, a test checks it (section 12).
 > drafted by `scripts/bake_closeup.py`, and the five icons at 10 × 4) and the lamp flicker
 > (E5.3, with `play --no-motion`). Also not built: the colour-off switch (E4.3), close-ups
 > for the other objects (E3.2) and the intro and ending screens (E6).
+>
+> **More rooms (E8)** adds the Darkroom and the Night Office after the Electrical Room
+> (section 5.7): a light colour and a flicker switch per room, and a door that won't let the
+> player leave a needed tool behind. Not built yet.
 
 Rows and columns are counted from 1, inside the **screen block** (section 2), top-left first.
 
@@ -417,12 +421,44 @@ and then:
   make a fourth within 10 seconds loses its second dip or waits.
 - Only the picture rows (2-25) are redrawn. The cursor's position and the text being typed are
   saved and restored, so typing is never disturbed.
-- **No flicker** when: inspecting, the power is on, colour is off (section 6), stdout is not a
-  terminal, `TERM=dumb`, the screen is too small, or `play --no-motion` is passed.
+- **No flicker** when: inspecting, the power is on, the room has `"flicker": false` (5.7),
+  colour is off (section 6), stdout is not a terminal, `TERM=dumb`, the screen is too small,
+  or `play --no-motion` is passed.
 - `dimmed(light, by)` (lower every digit), `flicker_wanted` and the schedule that picks the
   next flicker are pure code in `art.py` and tested. The timer lives in `terminal.py`: a thread
   that only writes picture rows rendered beforehand. It stops when the player's line is
   entered, on a resize and on exit.
+
+### 5.7 Rooms after the first (E8)
+
+The way out runs through three rooms, one after the other: **Electrical Room → Darkroom →
+Night Office → the street**. Doors are one-way: once through, the player never goes back.
+
+- **Entering a room.** `open door` on a door that leads on counts as a move and shows
+  `» The door opens. You step into the Darkroom.` The same turn draws the new room: its name in
+  the top border, its picture and description. The move counter, the inventory slots and the
+  message history carry on. Nothing is in FOCUS. Only the last room's door wins.
+- **Each room has its own light.** Every room is drawn with the same rules (5.1-5.3) and has
+  its own art file, scene file (5.4) and `[light:<state>]` maps. Any container state can
+  switch the map, not only `power on`:
+
+  | Room | Light | Flicker | High point |
+  |---|---|---|---|
+  | Electrical Room | amber lamp | yes, until the power is on | `[light:power on]` |
+  | Darkroom | red safelight, `"light": "red"` (section 6) | no: a safelight burns steady | the enlarger's white beam, `[light:focused]` / `[light:printed]` in `f` (PLAIN) |
+  | Night Office | neon through the blinds in `n` stripes, plus an amber lantern | yes: the neon buzzes | `[light:lit]`: the lantern lights the room |
+
+- **`"flicker"`** (room, default `true`) switches the flicker off for a room whose light is
+  steady. `flicker_wanted` reads it (5.6).
+- **`"light"`** (room, `"amber"` by default or `"red"`) picks the colour of the LIT, GLOW and
+  LIGHT roles in that room's picture (section 6). Icons and close-ups keep the amber scale.
+- **The carry guard.** A door can list `"carry": ["wrench"]`: tools the next room needs. While
+  one of them is not in the inventory, `open door` is refused and doesn't count as a move:
+  `✗ You'll want the wrench. Better not leave it behind.` So the player can't get stuck behind
+  a one-way door. `build_world` checks that each carried name exists in this room or an earlier
+  one, that the next room uses it, and that the last door carries nothing.
+- **A door that leads on** has `[door:open]` drawn as a dark doorway, not the night: the night
+  belongs to the last room's door.
 
 ## 6. Palette
 
@@ -478,6 +514,15 @@ Rules:
   the game looks the same everywhere. On a 16-colour terminal rich picks the nearest colour.
 - **Hues.** The light scale (SHADOW → DUSK → LIT → GLOW, with LIGHT at its top) is one
   cold-to-warm family. Besides it, only grey, plus red or blue as accents, are on screen.
+  The exception is a room with `"light": "red"` (5.7): its LIT, GLOW and LIGHT turn red
+  (table below). SHADOW and DUSK don't change, so shadow looks the same in every room.
+  DANGER (160) is not part of the red scale, so `r` marks still stand out.
+
+  | Light (red room) | Role | Colour | Hex | On black |
+  |---|---|---|---|---|
+  | `5`–`7` | `LIT` | 167 | `#d75f5f` | 5.7 |
+  | `8`–`9` | `GLOW` | 203 | `#ff5f5f` | 7.1 |
+  | `*` | `LIGHT` | 210 | `#ff8787` | 9.1 |
 - **Dark-grey themes.** On a typical dark-grey background (`#1e1e1e`) SHADOW drops to 2.8:1.
   That is accepted: shadow is meant to recede, and nothing the player must read is SHADOW.
 - Every art character is exactly one cell wide; `parse_art` and `parse_picture` reject anything
@@ -680,6 +725,7 @@ rest of the screen doesn't change. Errors are states, not crashes.
   ✗ Take what?
   ✗ The fuse box is locked.
   ✗ Your hands are full. Drop something to take the flashbulb.
+  ✗ You'll want the wrench. Better not leave it behind.
 ```
 
 ### Full inventory
@@ -796,3 +842,16 @@ To add with E7, E5.1 and E5.3:
 | Colour letters `0`–`9` map to the same roles as light levels | `test_screen.py` |
 | Every palette colour has at least 3:1 contrast on black (computed from its hex) | `test_terminal.py` |
 | The real screen at 100 × 44 and 140 × 50, too small, resize, power on, a flicker during typing (`TEXT_ADVENTURE_FLICKER_EVERY=1` shortens the wait) | pilotty, before each merge |
+
+To add with E8 (more rooms):
+
+| Rule | Test |
+|---|---|
+| A door that leads on moves the player into the next room; only the last door wins | `test_game.py` |
+| The carry guard refuses `open door` without the tool and it is not a move; with it, the door opens | `test_game.py` |
+| `carry` must name an item in this room or an earlier one that the next room uses; the last door carries nothing | `test_world.py` |
+| `"flicker": false` turns the flicker off; `"light"` is `amber` or `red` | `test_art.py`, `test_world.py` |
+| In a red room LIT, GLOW and LIGHT use the red colours, each at least 3:1 on black | `test_screen.py`, `test_terminal.py` |
+| A bake with several lamps, and lamps in a light state; the electrical scene bakes as before | `test_bake_light.py` |
+| The built-in world is won in par through all three rooms | `test_solve.py`, `test_game.py` |
+| Entering each room, the red darkroom, the enlarger beam, the lantern, the carry refusal, the win | pilotty, before each merge |
