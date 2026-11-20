@@ -232,16 +232,61 @@ def test_no_flicker_with_no_motion_inspecting_or_in_a_dumb_terminal(
     assert not _flickers(Terminal(_big_console()), world, player)
 
 
-def test_no_flicker_when_output_is_piped_has_no_colour_or_does_not_fit(
-    world: World, player: Player
-) -> None:
+def test_no_flicker_when_output_is_piped_or_has_no_colour(world: World, player: Player) -> None:
     assert not _flickers(Terminal(Console(file=StringIO(), width=140, height=50)), world, player)
     no_colour = Console(
         file=StringIO(), force_terminal=True, color_system=None, width=140, height=50
     )
     assert not _flickers(Terminal(no_colour), world, player)
-    small = Console(file=StringIO(), force_terminal=True, color_system="256", width=80, height=24)
-    assert not _flickers(Terminal(small), world, player)
+
+
+def test_a_small_window_made_big_enough_starts_flickering(world: World, player: Player) -> None:
+    console = Console(
+        file=StringIO(), force_terminal=True, color_system="256", width=80, height=24
+    )  # fmt: skip
+    terminal = Terminal(console)
+    assert _flickers(terminal, world, player)  # wanted: the fit is checked at each redraw
+    terminal.draw(*_screens(world, player))
+    assert terminal._frames is None  # too small: nothing to flicker
+    console.size = (140, 50)
+    terminal._redraw()  # what a resize does
+    assert terminal._frames is not None
+
+
+def test_stopping_the_flicker_forgets_the_dips_that_never_ran(world: World, player: Player) -> None:
+    terminal = Terminal(_big_console())
+    terminal.schedule = FlickerSchedule(random.Random(1), wait=(3.0, 3.0))
+    terminal.draw(*_screens(world, player))
+    for _ in range(3):  # three quick commands, each stopping the thread before its flicker
+        terminal._start_flicker()
+        terminal._stop_flicker()
+    now = time.monotonic()
+    # Three planned flickers 3 s away would fill the cap and hold the next one back ~10 s.
+    assert terminal.schedule.next(now).start < now + 3.5
+
+
+def test_a_broken_pipe_ends_the_flicker_thread_quietly(
+    world: World, player: Player, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    terminal = Terminal(_big_console())
+    terminal.schedule = FlickerSchedule(random.Random(1), wait=(0.01, 0.01))
+    terminal.draw(*_screens(world, player))
+    assert terminal._frames is not None
+    normal, dipped = terminal._frames
+    written: list[str] = []
+
+    def write(text: str) -> None:
+        written.append(text)
+        if text == dipped:
+            raise BrokenPipeError
+
+    monkeypatch.setattr(terminal, "_write", write)
+    terminal._start_flicker()
+    assert terminal._thread is not None
+    terminal._thread.join(2)
+    assert not terminal._thread.is_alive()
+    assert written == [dipped, normal]  # the normal frame was still tried after the failure
+    terminal._stop_flicker()
 
 
 def test_the_debug_variable_sets_how_often_the_lamp_flickers(

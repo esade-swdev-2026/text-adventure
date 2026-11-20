@@ -404,14 +404,19 @@ def compose_shade(art: Art, room: Room) -> list[str]:
     return _overlay(art, room, base, cells)
 
 
+def light_state(art: Art, room: Room) -> str | None:
+    """The state whose "[light:<state>]" map is in use, or None for "[light]". If objects in
+    different states each have a map, the first container in world.json order wins, then the
+    door; items never pick one (docs/SCREEN-SPEC.md §5.2)."""
+    states = [container.state for container in room.containers] + [room.door.state]
+    return next((state for state in states if state in art.lights), None)
+
+
 def light_for(art: Art, room: Room) -> tuple[str, ...]:
     """The light map in use: "[light:<state>]" while an object in the room is in that state
     (power-on lighting), otherwise "[light]"."""
-    states = [container.state for container in room.containers] + [room.door.state]
-    for state in states:
-        if state in art.lights:
-            return art.lights[state]
-    return art.light
+    state = light_state(art, room)
+    return art.light if state is None else art.lights[state]
 
 
 # Lamp flicker (docs/SCREEN-SPEC.md §5.6). Everything that can be decided without a clock or a
@@ -421,6 +426,7 @@ DIP = 2  # light levels a dip takes off
 DIP_SECONDS = 0.07  # a dip lasts 70 ms
 DIP_GAP = 0.07  # the light is normal for 70 ms between the two dips of a flicker
 FLICKER_WAIT = (3.0, 8.0)  # seconds from one flicker to the next
+POWER_ON = "power on"  # the light state that stops the flicker: the ceiling tube is on
 MAX_DIPS = 3  # never more than this many dips in any WINDOW seconds: not a strobe
 WINDOW = 10.0
 
@@ -440,20 +446,19 @@ def flicker_wanted(
     color: bool,
     is_terminal: bool,
     term: str,
-    fits: bool,
     motion: bool,
 ) -> bool:
     """Should the lamp flicker while the player thinks? Only in the room view (a close-up is
-    still), while the power is off (`[light:<state>]` is not in use), and when the terminal
-    can take it: colour on, stdout a terminal, TERM not dumb, a screen big enough, and no
-    `play --no-motion`."""
+    still), while the power is off (`[light:power on]` is not in use; other state maps don't
+    stop it), and when the terminal can take it: colour on, stdout a terminal, TERM not dumb,
+    and no `play --no-motion`. Whether the screen fits is left to the terminal, which checks it
+    at every redraw, so the flicker starts once a small window is made big enough."""
     return (
         not inspecting
-        and light_for(art, room) is art.light
+        and light_state(art, room) != POWER_ON
         and color
         and is_terminal
         and term != "dumb"
-        and fits
         and motion
     )
 
@@ -510,3 +515,8 @@ class FlickerSchedule:
         for time in flicker.times():
             insort(self._dips, time)
         return flicker
+
+    def cancel_after(self, now: float) -> None:
+        """Forget the planned dips that begin after `now`: the flicker thread stopped (the
+        player pressed Enter) before they ran, so they must not count against the cap."""
+        self._dips = [dip for dip in self._dips if dip <= now]

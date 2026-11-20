@@ -13,6 +13,7 @@ from text_adventure.art import (
     FLICKER_WAIT,
     ICON,
     MAX_DIPS,
+    POWER_ON,
     RAMP,
     SCREEN_WIDTH,
     WINDOW,
@@ -29,6 +30,7 @@ from text_adventure.art import (
     floor_key,
     level,
     light_for,
+    light_state,
     parse_art,
     parse_picture,
     tone,
@@ -421,7 +423,6 @@ CAN_FLICKER: dict[str, Any] = {
     "color": True,
     "is_terminal": True,
     "term": "xterm-256color",
-    "fits": True,
     "motion": True,
 }
 
@@ -443,7 +444,6 @@ def test_the_lamp_flickers_in_the_room_view_with_the_power_off(
         {"color": False},
         {"is_terminal": False},
         {"term": "dumb"},
-        {"fits": False},
         {"motion": False},
     ],
     ids=lambda change: next(iter(change)),
@@ -462,8 +462,16 @@ def test_no_flicker_once_the_power_is_on(
         play_turn(player, line)
     assert wanted(world, room)  # the fuse is not in yet
     play_turn(player, win_script[9])  # use fuse on fuse box
-    assert light_for(world.art_for(room), room) is not world.art_for(room).light
+    assert light_state(world.art_for(room), room) == POWER_ON
     assert not wanted(world, room)
+
+
+def test_a_light_map_for_another_state_does_not_stop_the_flicker() -> None:
+    art = parse_art("[background]\n.\n[light:open]\n9\n[light:power on]\n8\n")
+    room = Room("Lab", "", Door(None), [Container("box")])
+    room.containers[0].open(Inventory())
+    assert light_state(art, room) == "open" and light_for(art, room) == art.lights["open"]
+    assert flicker_wanted(art, room, **CAN_FLICKER)
 
 
 def plan(schedule: FlickerSchedule, seconds: float = 600.0) -> list[tuple[float, Flicker]]:
@@ -537,6 +545,25 @@ def test_the_cap_holds_when_every_flicker_is_as_soon_and_as_long_as_it_may_be() 
     assert busiest_window(dips_of(planned)) == SPEC_MAX_DIPS
     for asked, flicker in planned:
         assert SPEC_WAIT[0] <= flicker.start - asked <= SPEC_WAIT[1]
+
+
+def test_dips_cancelled_before_they_ran_do_not_push_the_next_flicker_back() -> None:
+    eager, cancelled = FlickerSchedule(Eager()), FlickerSchedule(Eager())
+    for schedule in (eager, cancelled):
+        for asked in (0.0, 0.1, 0.2):  # three quick commands: three flickers planned, none run
+            schedule.next(asked)
+    cancelled.cancel_after(0.3)
+    assert eager.next(0.3).start > 0.3 + SPEC_WAIT[1]  # held back by dips that never ran
+    assert cancelled.next(0.3).start == 0.3 + SPEC_WAIT[0]  # as soon as the interval allows
+
+
+def test_cancel_keeps_the_dips_that_already_ran() -> None:
+    schedule = FlickerSchedule(Eager())
+    times = list(schedule.next(0.0).times())  # two dips at 3.0 s
+    times += schedule.next(times[-1]).times()  # two more 3 s later; only one fits the cap
+    schedule.cancel_after(times[-1])  # all of these ran
+    times += schedule.next(times[-1]).times()
+    assert busiest_window(times) <= SPEC_MAX_DIPS
 
 
 def test_a_schedule_asked_again_before_its_last_flicker_still_keeps_the_cap() -> None:

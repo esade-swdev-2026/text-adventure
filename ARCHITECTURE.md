@@ -335,9 +335,11 @@ that only the timer is hard to test:
 
 - **Pure, in `art.py`, tested with pytest.** `dimmed(light, by)` lowers every light digit
   (colour letters stay). `flicker_wanted(...)` says whether to flicker at all: room view, power
-  off, colour on, a terminal, `TERM` not `dumb`, a screen big enough, no `--no-motion`.
+  off (`[light:power on]` not in use), colour on, a terminal, `TERM` not `dumb`, no
+  `--no-motion`. Whether the screen fits is checked by the terminal at every redraw.
   `FlickerSchedule` picks the next flicker (3 to 8 seconds away, one or two dips) and remembers
-  every dip it has planned, so there are never more than 3 dips in any 10 seconds. The cap is
+  every dip it has planned, so there are never more than 3 dips in any 10 seconds;
+  `cancel_after(now)` forgets the dips that never ran because the player pressed Enter. The cap is
   in the schedule, not in the interval, because flickers 3 seconds apart with two dips each
   would make 8; a test plans ten minutes for 30 seeds and checks every window.
 - **`screen.py`.** `build_screen(..., dip=n)` draws the room with `dimmed(light_for(art, room), n)`;

@@ -204,7 +204,6 @@ class Terminal:
             color=self.styles is COLOR_STYLES,
             is_terminal=self.console.is_terminal,
             term=os.environ.get("TERM", ""),
-            fits=self.fits(),
             motion=self.motion,
         )
 
@@ -263,20 +262,26 @@ class Terminal:
     def _flicker(self, stop: threading.Event, frames: tuple[str, str]) -> None:
         """The flicker thread: sleep until the schedule's next flicker, dip the picture, bring
         it back. It only writes ready-made strings. A dip is always put right again, even if
-        `stop` is set meanwhile, so the picture is never left dim."""
+        `stop` is set meanwhile, so the picture is never left dim. If the terminal is gone (a
+        broken pipe on quit), the thread ends quietly."""
         normal, dipped = frames
         after = time.monotonic()
-        while not stop.is_set():
-            flicker = self.schedule.next(after)
-            if stop.wait(max(0.0, flicker.start - time.monotonic())):
-                return
-            for dip in range(flicker.dips):
-                if dip and stop.wait(DIP_GAP):
+        try:
+            while not stop.is_set():
+                flicker = self.schedule.next(after)
+                if stop.wait(max(0.0, flicker.start - time.monotonic())):
                     return
-                self._write(dipped)
-                time.sleep(DIP_SECONDS)
-                self._write(normal)
-            after = flicker.start
+                for dip in range(flicker.dips):
+                    if dip and stop.wait(DIP_GAP):
+                        return
+                    try:
+                        self._write(dipped)
+                        time.sleep(DIP_SECONDS)
+                    finally:
+                        self._write(normal)
+                after = flicker.start
+        except OSError:
+            return
 
     def _write(self, text: str) -> None:
         with self._lock:
@@ -300,6 +305,7 @@ class Terminal:
         self._stop.set()
         self._thread.join(JOIN_SECONDS)
         self._thread = None
+        self.schedule.cancel_after(time.monotonic())  # dips planned but never run don't count
 
     def _draw_too_small(self) -> None:
         """Three lines centred both ways in whatever space there is; long lines are cut."""
