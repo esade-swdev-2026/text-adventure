@@ -60,15 +60,16 @@ next. The player has to look at the room and choose a verb and a thing.
 | ID | Feature | Description | Size | Priority | Depends on |
 |---|---|---|---|---|---|
 | E4.1 | **Colour palette** | The noir style moves to a coloured version. Dark blues and greys for the room in shadow, warm amber for the lamp and everything in its light, red for errors and danger, and a cold blue for the night outside the door. Icons and close-ups use the same palette. 256 colours, so it works in macOS Terminal. | M | Must | E0.1 |
-| E4.2 | **Readable on any theme** | Colours are chosen to stay readable on both dark and light terminal backgrounds. Bold and dim stay alongside colour as a fallback. | S | Must | E4.1 |
+| E4.2 | ~~**Readable on any theme**~~ | Built, then **replaced by E7**: tonal shading draws light as ink, so the game is now for dark themes only (SCREEN-SPEC §2, §6). Bold and dim stay alongside colour as a fallback. | S | Must | E4.1 |
 | E4.3 | **Colour off switch** | Respect the `NO_COLOR` environment variable and add a `--no-color` flag. Without colour, the game falls back to the current black-and-white style. | S | Should | E4.1 |
 
 ## E5 · Lighting and key moments
 
 | ID | Feature | Description | Size | Priority | Depends on |
 |---|---|---|---|---|---|
-| E5.1 | **Power-on lighting** | When the fuse is fixed, the light spreads across the room: most of it turns from shadow to amber, and the lamp stops swinging. This is the visual high point of the room. | M | Should | E1.3, E4.1 |
+| E5.1 | **Power-on lighting** | When the fuse is fixed, the light spreads across the room: most of it turns from shadow to amber, and the lamp stops swinging. This is the visual high point of the room. Built as a second baked light map, `[light:power on]` (SCREEN-SPEC §5.5). | M | Should | E1.3, E4.1, E7.3 |
 | E5.2 | **Flashbulb flash** | Using the flashbulb shows one fully lit, white frame, then the room returns to normal with the newly found thing highlighted. | S | Should | E1.3 |
+| E5.3 | **Lamp flicker** | While the player thinks, the lamp dips now and then: the pool of light darkens for a moment and comes back, without disturbing what is being typed. Never a strobe; off without colour, while inspecting, once the power is on, or with `--no-motion` (SCREEN-SPEC §5.6). | M | Could | E7.2 |
 
 ## E6 · Intro and ending
 
@@ -76,6 +77,19 @@ next. The player has to look at the room and choose a verb and a thing.
 |---|---|---|---|---|---|
 | E6.1 | **Intro screen with portrait** | When the game launches, it shows the face of a beaten-up man before the room: scars across his face, eyes wide open, drawn in noir style (hard light on one side, the rest in shadow, in the game's palette). Under the portrait, a short text introduces the story and the situation. Ends with "Press Enter to begin". | L | Must | E0.1, E4.1 |
 | E6.2 | **Ending screen** | A dedicated win screen: the open door with the wet city skyline from the ending text, the move count against par, and "play again / quit". | M | Should | E1.5, E4.1 |
+
+## E7 · Tonal art
+
+The look of tonal ASCII artwork (pictures built from a density ramp), kept readable: line art
+for walls and every object you can use, `░▒▓█` shading for surfaces and light. Agreed after a
+prototype; see SCREEN-SPEC §1, §2, §5, §6 and §7.
+
+| ID | Feature | Description | Size | Priority | Depends on |
+|---|---|---|---|---|---|
+| E7.1 | **Spec** | SCREEN-SPEC rewritten for the 92 × 24 picture, the 96 × 43 screen, tone cells, light levels, 10 × 4 icons and dark themes only. | S | Must | |
+| E7.2 | **Tone engine** | Parse `[shade]`, light levels `0`–`9`, `[light:<state>]` and shade maps for sprites and pictures; draw each cell as line art or dithered tone; the graded light roles and their styles; the new sizes. Ships with a placeholder room so the game keeps running. README and ARCHITECTURE updated. | M | Must | E7.1 |
+| E7.3 | **Room art and light baking** | `scripts/bake_light.py` and a scene file bake the shade and light maps as a draft; the electrical room is redrawn at 92 × 24 with sprites about twice as tall, then edited by hand and checked with pilotty. | L | Must | E7.2 |
+| E7.4 | **Close-up and icons** | The screwdriver close-up redrawn at 92 × 24 as a fully shaded object; the five icons redrawn at 10 × 4 with shading. | M | Must | E7.2 |
 
 ---
 
@@ -86,7 +100,8 @@ next. The player has to look at the room and choose a verb and a thing.
 3. **New layout:** E2.1–E2.5, E3.1, E4.1, E4.2
 4. **Content:** E2.4 icons, E3.2 close-ups, E1.4 + E3.3 puzzle chain and clues
 5. **Polish:** E6.1 intro, E5.1, E5.2, E6.2, E2.6–E2.8, E4.3, E1.6
-6. **Stretch:** E2.9 clickable verbs
+6. **Tonal art:** E7.1, E7.2, E7.3 + E7.4, then E5.1 power-on and E5.3 flicker
+7. **Stretch:** E2.9 clickable verbs
 
 ## Open questions
 
