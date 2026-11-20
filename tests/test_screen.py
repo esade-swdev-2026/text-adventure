@@ -469,6 +469,16 @@ def test_the_light_level_picks_the_role_and_letters_fix_it() -> None:
     assert [role for _, role in cells[0][5:8]] == [Role.NIGHT, Role.DANGER, Role.PLAIN]
 
 
+def test_a_red_room_draws_the_warm_roles_red_and_leaves_the_rest() -> None:
+    art = parse_art("[background]\n" + "x" * 10 + "*n\n[light]\n0123456789" + "9n\n")
+    picture = room_picture(art, Room("Lab", "", Door(None), light="red"))
+    roles = [role for text, role in picture[0] for _ in text]
+    assert (
+        roles[:10] == [Role.SHADOW] * 3 + [Role.DUSK] * 2 + [Role.RED_LIT] * 3 + [Role.RED_GLOW] * 2
+    )
+    assert roles[10:12] == [Role.RED_LIGHT, Role.NIGHT]
+
+
 def test_only_line_art_light_sources_in_the_light_are_bold_light() -> None:
     _, cells = lit_room()
     assert cells[0][4] == ("*", Role.LIGHT)  # a drawn light source at light 9

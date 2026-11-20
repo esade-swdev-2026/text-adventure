@@ -449,12 +449,14 @@ def flicker_wanted(
     motion: bool,
 ) -> bool:
     """Should the lamp flicker while the player thinks? Only in the room view (a close-up is
-    still), while the power is off (`[light:power on]` is not in use; other state maps don't
-    stop it), and when the terminal can take it: colour on, stdout a terminal, TERM not dumb,
-    and no `play --no-motion`. Whether the screen fits is left to the terminal, which checks it
-    at every redraw, so the flicker starts once a small window is made big enough."""
+    still), in a room whose light flickers (`"flicker"`, §5.7), while the power is off
+    (`[light:power on]` is not in use; other state maps don't stop it), and when the terminal
+    can take it: colour on, stdout a terminal, TERM not dumb, and no `play --no-motion`.
+    Whether the screen fits is left to the terminal, which checks it at every redraw, so the
+    flicker starts once a small window is made big enough."""
     return (
         not inspecting
+        and room.flicker
         and light_state(art, room) != POWER_ON
         and color
         and is_terminal

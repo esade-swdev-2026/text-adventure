@@ -15,6 +15,11 @@ CLOSED = "closed"
 LOCKED = "locked"
 UNLOCKED = "unlocked"
 
+# The colour of a room's light (docs/SCREEN-SPEC.md §5.7): amber, or red in the darkroom.
+AMBER = "amber"
+RED = "red"
+LIGHT_COLORS = (AMBER, RED)
+
 
 @dataclass(frozen=True)
 class Use:
@@ -90,6 +95,7 @@ class Door:
         room_texts: Mapping[str, str] | None = None,
         details: Mapping[str, str] | None = None,
         uses: list[Use] | None = None,
+        carry: tuple[str, ...] = (),
     ) -> None:
         self.next_room = next_room  # Room it leads to, or None for the final exit
         self.required_item = required_item  # name of the Item that unlocks it
@@ -99,6 +105,7 @@ class Door:
         self.room_texts = room_texts or {}  # its sentence in the room description, by state
         self.details = details or {}  # what `inspect` shows, by state
         self.uses = uses or []
+        self.carry = carry  # tools the next room needs: the door won't open without them
         self.is_unlocked = required_item is None
         self.is_open = False
 
@@ -125,6 +132,10 @@ class Door:
             inventory.use_item(self.required_item)
             self.is_unlocked = True
         return True
+
+    def left_behind(self, inventory: Inventory) -> list[str]:
+        """The tools in `carry` that the player isn't carrying."""
+        return [name for name in self.carry if not inventory.has_item(name)]
 
     def open(self) -> bool:
         """Open the door if it is unlocked. Return True if it opened."""
@@ -206,10 +217,15 @@ class Room:
         containers: list[Container] | None = None,
         items: list[Item] | None = None,
         hidden: list[Item] | None = None,
+        *,
+        flicker: bool = True,
+        light: str = AMBER,
     ) -> None:
         self.name = name
         self.description = description
         self.door = door
+        self.flicker = flicker  # does the lamp flicker while the power is off
+        self.light = light  # AMBER or RED: the colour of the light in the picture
         self.containers = containers or []  # list of Container
         self.items = items or []  # loose items lying in the room
         self.hidden = hidden or []  # loose items no one sees until a `use` reveals them

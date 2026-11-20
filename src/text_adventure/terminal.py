@@ -52,6 +52,8 @@ SLATE, MAUVE, AMBER, GOLD, PALE_GOLD = (
     "color(221)",
 )
 GREY, BLUE, RED = "color(243)", "color(32)", "color(160)"
+# The warm end of the scale in a room with red light (§5.7): not RED, so danger still stands out.
+SAFELIGHT, SAFELIGHT_GLOW, SAFELIGHT_PALE = "color(167)", "color(203)", "color(210)"
 COLOR_STYLES: dict[Role, str] = {
     Role.TITLE: "bold",
     Role.BORDER: GREY,
@@ -60,6 +62,9 @@ COLOR_STYLES: dict[Role, str] = {
     Role.LIT: AMBER,
     Role.GLOW: GOLD,
     Role.LIGHT: f"bold {PALE_GOLD}",
+    Role.RED_LIT: SAFELIGHT,
+    Role.RED_GLOW: SAFELIGHT_GLOW,
+    Role.RED_LIGHT: f"bold {SAFELIGHT_PALE}",
     Role.NIGHT: BLUE,
     Role.DANGER: RED,
     Role.PLAIN: "",
@@ -86,6 +91,9 @@ NO_COLOR_STYLES: dict[Role, str] = {
     Role.LIT: "",
     Role.GLOW: "",
     Role.LIGHT: "bold",
+    Role.RED_LIT: "",
+    Role.RED_GLOW: "",
+    Role.RED_LIGHT: "bold",
     Role.NIGHT: "",
     Role.DANGER: "",
     Role.PLAIN: "",

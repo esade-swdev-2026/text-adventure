@@ -481,6 +481,12 @@ def test_no_flicker_once_the_power_is_on(
     assert not wanted(world, room)
 
 
+def test_no_flicker_in_a_room_whose_light_is_steady() -> None:
+    art = parse_art("[background]\n.\n")
+    assert flicker_wanted(art, Room("Lab", "", Door(None)), **CAN_FLICKER)
+    assert not flicker_wanted(art, Room("Lab", "", Door(None), flicker=False), **CAN_FLICKER)
+
+
 def test_a_light_map_for_another_state_does_not_stop_the_flicker() -> None:
     art = parse_art("[background]\n.\n[light:open]\n9\n[light:power on]\n8\n")
     room = Room("Lab", "", Door(None), [Container("box")])

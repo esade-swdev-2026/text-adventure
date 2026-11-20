@@ -10,6 +10,7 @@ from text_adventure.game import (
     win_message,
 )
 from text_adventure.models import CAPACITY, Container, Door, Inventory, Item, Player, Room, Use
+from text_adventure.world import World
 
 
 def turn(player: Player, line: str, par: int | None = None) -> Outcome:
@@ -87,17 +88,56 @@ def test_key_wont_turn_until_the_power_is_back(player: Player) -> None:
     assert player.current_room.door.state == "locked"
 
 
-def test_the_whole_way_out_wins_in_par(player: Player, win_script: list[str]) -> None:
+def test_the_whole_way_out_wins_in_par(world: World, player: Player, win_script: list[str]) -> None:
     for line in win_script[:-1]:
-        outcome = turn(player, line, par=12)
+        outcome = turn(player, line, par=world.par)
         assert not outcome.error and not outcome.won, line
     door = player.current_room.door
     assert door.state == "unlocked"
-    assert not player.inventory.has_item("key")  # the key stays in the lock
-    outcome = turn(player, "open door", par=12)
+    assert door.required_item is not None
+    assert not player.inventory.has_item(door.required_item)  # the key stays in the lock
+    outcome = turn(player, "open door", par=world.par)
     assert outcome.won and outcome.subject == "door"
-    assert outcome.message == "Escaped in 12 moves. Par is 12. Sharp."
-    assert player.moves == 12
+    moves = len(win_script)
+    assert outcome.message == f"Escaped in {moves} moves. Par is {world.par}. Sharp."
+    assert player.moves == moves == world.par
+
+
+# Rooms after the first, and the carry guard
+
+
+def two_rooms(carry: tuple[str, ...] = ()) -> Player:
+    """A shed whose door needs the key and leads to a yard where the rope is used."""
+    yard = Room("Yard", "", Door(None, "rope"), [Container("well", uses=[Use("rope", "Down.")])])
+    shed = Room("Shed", "", Door(yard, "key", carry=carry), items=[Item("key"), Item("rope")])
+    return Player(shed, Inventory())
+
+
+def test_a_door_that_leads_on_moves_the_player_into_the_next_room() -> None:
+    player = two_rooms()
+    run(player, "take key", "use key on door")
+    outcome = turn(player, "open door")
+    assert outcome.message == "The door opens. You step into the Yard."
+    assert outcome.moved and not outcome.won
+    assert player.current_room.name == "Yard"
+
+
+def test_the_door_wont_open_while_a_tool_the_next_room_needs_is_left_behind() -> None:
+    player = two_rooms(carry=("rope",))
+    run(player, "take key", "use key on door")
+    moves = player.moves
+    outcome = turn(player, "open door")
+    assert outcome.error and not outcome.moved
+    assert outcome.message == "You'll want the rope. Better not leave it behind."
+    assert player.current_room.name == "Shed" and player.moves == moves
+    assert not player.current_room.door.is_open
+    run(player, "take rope")
+    assert turn(player, "open door").message == "The door opens. You step into the Yard."
+
+
+def test_a_locked_door_says_locked_before_the_carry_guard() -> None:
+    player = two_rooms(carry=("rope",))
+    assert turn(player, "open door").message == "The door is locked."
 
 
 def test_unlocking_twice_says_so(player: Player, win_script: list[str]) -> None:
