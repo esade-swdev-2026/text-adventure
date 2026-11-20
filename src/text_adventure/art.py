@@ -1,9 +1,11 @@
-"""Room art: parse the art file, compose sprites onto the background by object state, and
-turn shade and light into tone characters (docs/SCREEN-SPEC.md §5)."""
+"""Room art: parse the art file, compose sprites onto the background by object state, turn
+shade and light into tone characters, and plan the lamp's flicker (docs/SCREEN-SPEC.md §5)."""
 
 import math
+import random
 import re
-from collections.abc import Callable, Mapping
+from bisect import insort
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 
 from rich.cells import cell_len
@@ -402,13 +404,119 @@ def compose_shade(art: Art, room: Room) -> list[str]:
     return _overlay(art, room, base, cells)
 
 
+def light_state(art: Art, room: Room) -> str | None:
+    """The state whose "[light:<state>]" map is in use, or None for "[light]". If objects in
+    different states each have a map, the first container in world.json order wins, then the
+    door; items never pick one (docs/SCREEN-SPEC.md §5.2)."""
+    states = [container.state for container in room.containers] + [room.door.state]
+    return next((state for state in states if state in art.lights), None)
+
+
 def light_for(art: Art, room: Room) -> tuple[str, ...]:
     """The light map in use: "[light:<state>]" while an object in the room is in that state
-    (power-on lighting), otherwise "[light]". If objects in different states each have a map,
-    the first container in world.json order wins, then the door; items never pick one
-    (docs/SCREEN-SPEC.md §5.2)."""
-    states = [container.state for container in room.containers] + [room.door.state]
-    for state in states:
-        if state in art.lights:
-            return art.lights[state]
-    return art.light
+    (power-on lighting), otherwise "[light]"."""
+    state = light_state(art, room)
+    return art.light if state is None else art.lights[state]
+
+
+# Lamp flicker (docs/SCREEN-SPEC.md §5.6). Everything that can be decided without a clock or a
+# terminal is here, so tests can check it: how far a dip lowers the light, whether to flicker
+# at all, and when the next flicker comes. terminal.py only runs the timer.
+DIP = 2  # light levels a dip takes off
+DIP_SECONDS = 0.07  # a dip lasts 70 ms
+DIP_GAP = 0.07  # the light is normal for 70 ms between the two dips of a flicker
+FLICKER_WAIT = (3.0, 8.0)  # seconds from one flicker to the next
+POWER_ON = "power on"  # the light state that stops the flicker: the ceiling tube is on
+MAX_DIPS = 3  # never more than this many dips in any WINDOW seconds: not a strobe
+WINDOW = 10.0
+
+
+def dimmed(light: Sequence[str], by: int) -> tuple[str, ...]:
+    """A light map with every digit lowered by `by`, never below 0. Colour letters and blanks
+    stay as they are, so the door's night and the red light do not dip."""
+    lowered = str.maketrans({str(n): str(max(0, n - by)) for n in range(FULL_LIGHT + 1)})
+    return tuple(row.translate(lowered) for row in light)
+
+
+def flicker_wanted(
+    art: Art,
+    room: Room,
+    *,
+    inspecting: bool,
+    color: bool,
+    is_terminal: bool,
+    term: str,
+    motion: bool,
+) -> bool:
+    """Should the lamp flicker while the player thinks? Only in the room view (a close-up is
+    still), while the power is off (`[light:power on]` is not in use; other state maps don't
+    stop it), and when the terminal can take it: colour on, stdout a terminal, TERM not dumb,
+    and no `play --no-motion`. Whether the screen fits is left to the terminal, which checks it
+    at every redraw, so the flicker starts once a small window is made big enough."""
+    return (
+        not inspecting
+        and light_state(art, room) != POWER_ON
+        and color
+        and is_terminal
+        and term != "dumb"
+        and motion
+    )
+
+
+@dataclass(frozen=True)
+class Flicker:
+    """One flicker: one dip, or two with a gap between them. `start` is when the first dip
+    begins, in seconds on whatever clock the caller keeps."""
+
+    start: float
+    dips: int
+
+    def times(self) -> tuple[float, ...]:
+        """When each of its dips begins."""
+        return tuple(self.start + n * (DIP_SECONDS + DIP_GAP) for n in range(self.dips))
+
+
+class FlickerSchedule:
+    """Picks when the lamp flickers next, and keeps it from ever becoming a strobe.
+
+    A flicker is one or two dips, 3 to 8 seconds after the one before. That alone allows 8 dips
+    in 10 seconds (four flickers 3 seconds apart, two dips each), so the schedule remembers
+    every dip it has planned: a flicker that would make a fourth dip within WINDOW seconds
+    loses its second dip, and if that is not enough it waits until the oldest dip has left the
+    window. Take a seeded `random.Random` and a test can plan ten minutes and check every window.
+    """
+
+    def __init__(
+        self, rng: random.Random | None = None, wait: tuple[float, float] = FLICKER_WAIT
+    ) -> None:
+        self._random = rng or random.Random()
+        self._wait = wait
+        self._dips: list[float] = []  # when every planned dip begins, in order
+
+    def _crowded(self, times: Sequence[float]) -> bool:
+        """Would these dips, with the ones already planned, put more than MAX_DIPS in a window?"""
+        merged = sorted([*self._dips, *times])
+        return any(
+            merged[index + MAX_DIPS] < merged[index] + WINDOW
+            for index in range(len(merged) - MAX_DIPS)
+        )
+
+    def next(self, after: float) -> Flicker:
+        """The next flicker, 3 to 8 seconds after `after` unless the cap pushes it later."""
+        start = after + self._random.uniform(*self._wait)
+        dips = self._random.choice((1, 2))
+        while self._crowded(Flicker(start, dips).times()):
+            if dips > 1:
+                dips = 1
+            else:
+                leaving = [dip + WINDOW for dip in self._dips if dip + WINDOW > start]
+                start = min(leaving)
+        flicker = Flicker(start, dips)
+        for time in flicker.times():
+            insort(self._dips, time)
+        return flicker
+
+    def cancel_after(self, now: float) -> None:
+        """Forget the planned dips that begin after `now`: the flicker thread stopped (the
+        player pressed Enter) before they ran, so they must not count against the cap."""
+        self._dips = [dip for dip in self._dips if dip <= now]

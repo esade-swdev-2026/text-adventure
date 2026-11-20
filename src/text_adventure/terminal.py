@@ -1,7 +1,10 @@
 """Draw a Screen with rich and read a line. The only module that prints during play."""
 
+import os
 import signal
+import threading
 import time
+from collections.abc import Sequence
 from types import FrameType
 
 try:  # gives input() arrow keys, history and Tab; not on Windows, where the console edits lines
@@ -12,11 +15,22 @@ except ImportError:  # pragma: no cover
 from rich.console import Console
 from rich.text import Text
 
+from .art import (
+    ART_HEIGHT,
+    DIP_GAP,
+    DIP_SECONDS,
+    FLICKER_WAIT,
+    Art,
+    FlickerSchedule,
+    flicker_wanted,
+)
+from .models import Room
 from .screen import (
     BLOCK_WIDTH,
     INDENT,
     MIN_COLUMNS,
     MIN_ROWS,
+    Line,
     Role,
     Screen,
     complete,
@@ -88,6 +102,37 @@ NO_COLOR_STYLES: dict[Role, str] = {
 
 FLASH_SECONDS = 0.15  # long enough to see, short enough to feel like a camera flash
 
+# Lamp flicker (docs/SCREEN-SPEC.md §5.6). Debug only: setting this to a number of seconds
+# makes every flicker come that often, so pilotty need not wait 3 to 8 seconds. The cap of 3
+# dips in any 10 seconds is kept either way.
+FLICKER_EVERY_VARIABLE = "TEXT_ADVENTURE_FLICKER_EVERY"
+SAVE_CURSOR, RESTORE_CURSOR = "\x1b7", "\x1b8"
+HIDE_CURSOR, SHOW_CURSOR, RESET_STYLE = "\x1b[?25l", "\x1b[?25h", "\x1b[0m"
+JOIN_SECONDS = 1.0  # the longest to wait for the flicker thread to stop
+
+
+def picture_write(rows: Sequence[str], top: int, column: int) -> str:
+    """The text that redraws the picture's rows in place and leaves the cursor where it was.
+
+    `rows` are ready-made ANSI strings, one per picture row. `top` is how many terminal rows
+    lie above the screen block (counted from 0) and `column` is where the picture starts
+    (counted from 1). Picture row n is on terminal row `top + 2 + n`: the block's top border
+    comes first. Only picture rows are written, never the prompt's row, and the cursor is
+    saved and restored (and hidden meanwhile, so it does not visibly jump), all in one string
+    so it goes out in one write and readline cannot slip a keystroke's echo in between.
+    """
+    moves = [f"\x1b[{top + 2 + n};{column}H{row}{RESET_STYLE}" for n, row in enumerate(rows)]
+    return SAVE_CURSOR + HIDE_CURSOR + "".join(moves) + RESTORE_CURSOR + SHOW_CURSOR
+
+
+def _flicker_wait() -> tuple[float, float] | None:
+    """The debug interval from the environment, or None for the normal 3 to 8 seconds."""
+    try:
+        seconds = float(os.environ[FLICKER_EVERY_VARIABLE])
+    except (KeyError, ValueError):
+        return None
+    return (seconds, seconds) if seconds > 0 else None
+
 
 class _Resized(Exception):
     """The window changed size while the player was typing. Carries what was typed."""
@@ -109,13 +154,20 @@ def _typed_so_far() -> str:
 class Terminal:
     """The real terminal: draws screens with rich and reads the player's commands."""
 
-    def __init__(self, console: Console | None = None) -> None:
+    def __init__(self, console: Console | None = None, motion: bool = True) -> None:
         self.console = console or Console(highlight=False)
+        self.motion = motion  # False for `play --no-motion`
         self.margin = ""
         self.plain = not self.console.encoding.startswith("utf")
         self.screen: Screen | None = None
+        self.dipped: Screen | None = None  # the same screen with the lamp dipped, if it flickers
         self.styles = COLOR_STYLES if self.console.color_system else NO_COLOR_STYLES
+        self.schedule = FlickerSchedule(wait=_flicker_wait() or FLICKER_WAIT)
         self._reading = False
+        self._frames: tuple[str, str] | None = None  # the picture, normal and dipped, as ANSI
+        self._thread: threading.Thread | None = None
+        self._stop = threading.Event()
+        self._lock = threading.Lock()  # one writer to the terminal at a time
         if not self.console.is_terminal:  # piped output: draw full width, never "too small"
             self.console.width = max(self.console.width, BLOCK_WIDTH)
         elif hasattr(signal, "SIGWINCH"):
@@ -134,10 +186,26 @@ class Terminal:
         width, height = self.console.size
         return not self.console.is_terminal or (width >= MIN_COLUMNS and height >= MIN_ROWS)
 
-    def draw(self, screen: Screen) -> None:
-        """Clear the terminal and draw the whole screen, centred both ways."""
+    def draw(self, screen: Screen, dipped: Screen | None = None) -> None:
+        """Clear the terminal and draw the whole screen, centred both ways. Give `dipped`,
+        the same screen built with the lamp dipped, if the picture should flicker while the
+        player thinks (see `flicker_for`)."""
         self.screen = screen
+        self.dipped = dipped
         self._redraw()
+
+    def flicker_for(self, art: Art, room: Room, inspecting: bool) -> bool:
+        """Should the screen about to be drawn flicker? The rules are `flicker_wanted`'s; this
+        adds what only the terminal knows."""
+        return flicker_wanted(
+            art,
+            room,
+            inspecting=inspecting,
+            color=self.styles is COLOR_STYLES,
+            is_terminal=self.console.is_terminal,
+            term=os.environ.get("TERM", ""),
+            motion=self.motion,
+        )
 
     def flash(self, screen: Screen) -> None:
         """Draw the screen with its picture lit white for an instant. `screen` is built at full
@@ -147,24 +215,97 @@ class Terminal:
         time.sleep(FLASH_SECONDS)
 
     def _redraw(self) -> None:
-        self.console.clear()
-        if self.screen is None:
+        with self._lock:
+            self._frames = None
+            self.console.clear()
+            if self.screen is None:
+                return
+            if not self.fits():
+                self._draw_too_small()
+                return
+            width, height = self.console.size
+            self.margin = " " * ((width - BLOCK_WIDTH) // 2)
+            top = (height - MIN_ROWS) // 2 if self.console.is_terminal else 0
+            for _ in range(top):
+                self.console.print()
+            for line in self.screen.rows:
+                text = Text(self.margin)
+                for segment, role in line:
+                    text.append(self._text(segment), style=self.styles[role])
+                self.console.print(text, no_wrap=True, overflow="crop")
+            if self.screen.footer:
+                self.say(self.screen.footer, style=self.styles[Role.LABEL])
+            if self.dipped is not None:
+                self._frames = self._flicker_frames(self.screen, self.dipped, top)
+
+    def _ansi(self, line: Line) -> str:
+        """One row as the string rich would print for it, without the margin."""
+        text = Text()
+        for segment, role in line:
+            text.append(self._text(segment), style=self.styles[role])
+        with self.console.capture() as capture:
+            self.console.print(text, end="", no_wrap=True, overflow="crop")
+        return capture.get()
+
+    def _flicker_frames(self, normal: Screen, dipped: Screen, top: int) -> tuple[str, str]:
+        """The picture's rows, normal and dipped, each ready to write in one go. Done here, in
+        the main thread, so the flicker thread never calls rich."""
+        column = len(self.margin) + 3  # border and one cell of padding, counted from 1
+
+        def frame(screen: Screen) -> str:
+            # Row 0 of the block is the top border; the picture rows sit between the borders.
+            picture = [self._ansi(screen.rows[1 + n][1:-1]) for n in range(ART_HEIGHT)]
+            return picture_write(picture, top, column)
+
+        return frame(normal), frame(dipped)
+
+    def _flicker(self, stop: threading.Event, frames: tuple[str, str]) -> None:
+        """The flicker thread: sleep until the schedule's next flicker, dip the picture, bring
+        it back. It only writes ready-made strings. A dip is always put right again, even if
+        `stop` is set meanwhile, so the picture is never left dim. If the terminal is gone (a
+        broken pipe on quit), the thread ends quietly."""
+        normal, dipped = frames
+        after = time.monotonic()
+        try:
+            while not stop.is_set():
+                flicker = self.schedule.next(after)
+                if stop.wait(max(0.0, flicker.start - time.monotonic())):
+                    return
+                for dip in range(flicker.dips):
+                    if dip and stop.wait(DIP_GAP):
+                        return
+                    try:
+                        self._write(dipped)
+                        time.sleep(DIP_SECONDS)
+                    finally:
+                        self._write(normal)
+                after = flicker.start
+        except OSError:
             return
-        if not self.fits():
-            self._draw_too_small()
+
+    def _write(self, text: str) -> None:
+        with self._lock:
+            self.console.file.write(text)
+            self.console.file.flush()
+
+    def _start_flicker(self) -> None:
+        """Start the flicker thread if the screen on show has a dipped twin."""
+        if self._frames is None or self._thread is not None:
             return
-        width, height = self.console.size
-        self.margin = " " * ((width - BLOCK_WIDTH) // 2)
-        top = (height - MIN_ROWS) // 2 if self.console.is_terminal else 0
-        for _ in range(top):
-            self.console.print()
-        for line in self.screen.rows:
-            text = Text(self.margin)
-            for segment, role in line:
-                text.append(self._text(segment), style=self.styles[role])
-            self.console.print(text, no_wrap=True, overflow="crop")
-        if self.screen.footer:
-            self.say(self.screen.footer, style=self.styles[Role.LABEL])
+        self._stop = threading.Event()
+        self._thread = threading.Thread(
+            target=self._flicker, args=(self._stop, self._frames), daemon=True, name="lamp-flicker"
+        )
+        self._thread.start()
+
+    def _stop_flicker(self) -> None:
+        """Stop the flicker thread, if it runs, and wait until it has put the picture right."""
+        if self._thread is None:
+            return
+        self._stop.set()
+        self._thread.join(JOIN_SECONDS)
+        self._thread = None
+        self.schedule.cancel_after(time.monotonic())  # dips planned but never run don't count
 
     def _draw_too_small(self) -> None:
         """Three lines centred both ways in whatever space there is; long lines are cut."""
@@ -221,6 +362,7 @@ class Terminal:
             self._enable_tab(names)
             self._prefill(typed)
             prompt = screen.prompt if screen and self.fits() else ""
+            self._start_flicker()  # before _reading, so a resize can't interrupt the start
             self._reading = True
             try:
                 return self.console.input(
@@ -229,9 +371,11 @@ class Terminal:
             except _Resized as resized:
                 typed = resized.typed
                 self._reading = False
+                self._stop_flicker()  # the redraw below sets up the next one, if it fits
                 self._redraw()
             finally:
                 self._reading = False
+                self._stop_flicker()
 
     def say(self, message: str, new_line: bool = False, style: str = "") -> None:
         """Print one line under the screen, in the text column, e.g. "Goodbye."."""

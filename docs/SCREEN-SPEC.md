@@ -13,11 +13,12 @@ art). Where a rule can be checked in code, a test checks it (section 12).
 > **This version describes the tonal art redesign (E7).** It changes the picture to 92 × 24
 > drawn in line art plus `░▒▓█` shading, the screen to 96 × 43, the icons to 10 × 4 and the
 > palette to a graded light scale, and drops light-theme support. Built: the engine (E7.2:
-> sizes, tone, light levels, light maps by state, the graded roles) and the room (E7.3: drawn
+> sizes, tone, light levels, light maps by state, the graded roles), the room (E7.3: drawn
 > at 92 × 24, light baked by `scripts/bake_light.py`, with `[light:power on]`, so power-on
-> lighting, E5.1, works too). The close-up and the icons (E7.4) are still the old drawings,
-> padded into the new sizes. Also not built: lamp flicker (E5.3), the colour-off switch
-> (E4.3), close-up art (E3) and the intro and ending screens (E6).
+> lighting, E5.1, works too) and the pictures (E7.4: the screwdriver close-up at 92 × 24,
+> drafted by `scripts/bake_closeup.py`, and the five icons at 10 × 4) and the lamp flicker
+> (E5.3, with `play --no-motion`). Also not built: the colour-off switch (E4.3), close-ups
+> for the other objects (E3.2) and the intro and ending screens (E6).
 
 Rows and columns are counted from 1, inside the **screen block** (section 2), top-left first.
 
@@ -409,14 +410,19 @@ and then:
 
 - A **dip** draws the picture with every light digit lowered by 2 (never below 0; colour
   letters unchanged) for 70 ms, then draws it normally again.
-- A **flicker** is one dip, or two dips 70 ms apart. Flickers come at random intervals of 3 to
-  8 seconds. At most 3 dips in any 10 seconds: never a strobe.
+- A **flicker** is one dip, or two dips 70 ms apart (the light is normal for 70 ms between
+  them). Flickers come at random intervals of 3 to 8 seconds. At most 3 dips in any 10
+  seconds: never a strobe. The interval alone does not keep to that (flickers 3 seconds apart
+  with two dips each would make 8), so the schedule remembers its dips: a flicker that would
+  make a fourth within 10 seconds loses its second dip or waits.
 - Only the picture rows (2-25) are redrawn. The cursor's position and the text being typed are
   saved and restored, so typing is never disturbed.
 - **No flicker** when: inspecting, the power is on, colour is off (section 6), stdout is not a
   terminal, `TERM=dumb`, the screen is too small, or `play --no-motion` is passed.
-- `dimmed(light, by)` (lower every digit) is pure code in `art.py` and tested. The timer lives in
-  `terminal.py`.
+- `dimmed(light, by)` (lower every digit), `flicker_wanted` and the schedule that picks the
+  next flicker are pure code in `art.py` and tested. The timer lives in `terminal.py`: a thread
+  that only writes picture rows rendered beforehand. It stops when the player's line is
+  entered, on a resize and on exit.
 
 ## 6. Palette
 
@@ -516,6 +522,12 @@ One plain UTF-8 text file per picture, in the same `[section]` syntax as the roo
 - Frames and maps must fit in the picture's size and are padded with spaces to exactly that
   size. Leading blank lines count (they push the drawing down); trailing ones don't.
 - Every character must be one cell wide.
+
+- Like the room's maps, a close-up's shading is drafted by a script and then edited by hand:
+  `scripts/bake_closeup.py` draws the handle and the shaft as cylinders lit from the top left
+  (Lambert, plus a highlight on the steel, a darker rib every fifth handle column) and prints
+  the `[default]`, `[default:colors]` and `[default:shade]` sections. It is a development tool
+  outside the package, and its output is a draft.
 
 | Kind | Size | Where it shows | `world.json` field |
 |---|---|---|---|
@@ -748,6 +760,13 @@ Built (E0.2, E2, E4), with sizes updated by E7.2:
 | Too big, wide characters, unknown colour letters, a map without a frame are errors | `test_art.py` |
 | An unknown state falls back to the first frame | `test_art.py` |
 | The example icon and close-up load at 10 × 4 and 92 × 24 | `test_art.py` |
+| Every item has a 10 × 4 icon; every icon character has an ASCII stand-in of the same width | `test_screen.py` |
+| `dimmed(light, by)` lowers every digit, never below 0, and leaves colour letters alone; a dip changes only the picture's rows and no colour-letter cell | `test_art.py`, `test_screen.py` |
+| Flicker: never more than 3 dips in any 10 s, over 10 minutes for 30 seeds and in the worst case; flickers 3 to 8 s apart, one or two dips | `test_art.py` |
+| Flicker: off when inspecting, power on, no colour, not a terminal, `TERM=dumb`, too small or `--no-motion` | `test_art.py`, `test_terminal.py`, `test_cli.py` |
+| Flicker: only picture rows are written, never the prompt's; the cursor is saved and restored; a dip is always put right; the thread is a daemon and stops | `test_terminal.py` |
+| A light bake: every section 92 × 24, cells digits or colour letters, the lamp's cells at 9, power-on light at least the ambient level, two bakes identical | `test_bake_light.py` |
+| The close-up draft loads at 92 × 24 and is the same on every run; handle colours are light digits `5`-`9`, steel `f`, the cast shadow `1`; every fifth handle column is darker | `test_bake_closeup.py` |
 | `icon` / `closeup` must name a loaded file of the right kind | `test_world.py` |
 | Missing icons and close-ups are listed; scenery needs no icon | `test_world.py` |
 | `check` warns about missing pictures and exits 0; a bad picture exits 1 | `test_cli.py` |
@@ -771,11 +790,9 @@ To add with E7, E5.1 and E5.3:
 | `[shade]` and `[light]` accept only digits (and colour letters in `[light]`), must fit 92 × 24, missing cells are `0` | `test_art.py` |
 | A sprite's shade map must match its sprite's size; spaces inside the outline without shade are black | `test_art.py` |
 | `[light:<state>]` replaces `[light]` while an object in the room is in that state | `test_art.py` |
-| `dimmed(light, by)` lowers every digit, never below 0, and leaves colour letters alone | `test_art.py` |
 | Picture shade maps: digits only, padded to size, tone only where the frame has a space | `test_art.py` |
 | Every tone cell is one of ` ░▒▓█`; every line-art cell keeps its background or sprite character | `test_screen.py` |
 | Light level picks SHADOW / DUSK / LIT / GLOW; LIGHT only on line-art light sources | `test_screen.py` |
 | Colour letters `0`–`9` map to the same roles as light levels | `test_screen.py` |
 | Every palette colour has at least 3:1 contrast on black (computed from its hex) | `test_terminal.py` |
-| Flicker: dips are at most 3 in any 10 s; off when inspecting, power on, no colour, not a terminal or `--no-motion` | `test_terminal.py` |
-| The real screen at 100 × 44 and 140 × 50, too small, resize, power on, a flicker during typing | pilotty, before each merge |
+| The real screen at 100 × 44 and 140 × 50, too small, resize, power on, a flicker during typing (`TEXT_ADVENTURE_FLICKER_EVERY=1` shortens the wait) | pilotty, before each merge |
