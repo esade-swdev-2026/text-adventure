@@ -487,3 +487,26 @@ def test_picture_blanks_with_shade_become_tone_and_colour_digits_are_light_level
     (line,) = frame_lines(frame)
     assert line_text(line) == "x██"
     assert [role for text, role in line for _ in text] == [Role.GLOW, Role.SHADOW, Role.DUSK]
+
+
+def test_the_closed_door_shows_its_steel_and_unlocking_changes_it(
+    world: World, player: Player
+) -> None:
+    room = player.current_room
+    art = world.art_for(room)
+    top, left = art.placements["door"].row, art.placements["door"].column
+
+    def steel() -> str:
+        rows = [line_text(line) for line in room_picture(art, room)]
+        return "".join(row[left + 1 : left + 12] for row in rows[top + 1 : top + 9])
+
+    locked = steel()
+    assert set(locked) & set(RAMP[1:])  # tone shows: the shade is above black under `n`
+    room.door.is_unlocked = True
+    assert steel() != locked
+
+
+def test_the_red_light_by_the_door_wakes_with_the_power(world: World) -> None:
+    art = world.art_for(world.first_room)  # the story says so: "a small red light wakes up"
+    assert not any("r" in row for row in art.light)
+    assert any("r" in row for row in art.lights["power on"])

@@ -35,6 +35,18 @@ rows = [4, 6]
 columns = [28, 34]
 letter = 9
 
+# The lamp's shade is drawn with █, which is not a light source by itself (SCREEN-SPEC §5.3),
+# so its cells are marked LIGHT.
+[[marks]]
+rows = [4, 4]
+columns = [31, 31]
+letter = "*"
+
+[[marks]]
+rows = [5, 5]
+columns = [29, 33]
+letter = "*"
+
 # Inside the door frame is night blue: the open door's sky and skyline, and the closed
 # door's cold steel.
 [[marks]]
