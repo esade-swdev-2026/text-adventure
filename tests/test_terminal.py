@@ -17,6 +17,7 @@ from text_adventure.terminal import (
     NO_COLOR_STYLES,
     Terminal,
     picture_write,
+    readline_prompt,
 )
 from text_adventure.world import World
 
@@ -82,6 +83,32 @@ def test_lines_print_in_256_colours() -> None:
     output = console.file.getvalue()  # type: ignore[attr-defined]
     assert "38;5;160" in output
     assert "38;2;" not in output  # no truecolor upgrade
+
+
+def test_readline_prompt_hides_colour_codes_so_readline_measures_only_the_text() -> None:
+    prompt = readline_prompt("\x1b[1m  [Room] > \x1b[0m")
+    assert prompt == "\x01\x1b[1m\x02  [Room] > \x01\x1b[0m\x02"
+    assert re.sub("\x01[^\x02]*\x02", "", prompt) == "  [Room] > "
+
+
+def test_the_prompt_goes_to_input_whole_so_deleting_cannot_wipe_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # readline only redraws what it knows about: a prompt printed before input() is wiped
+    # when the player deletes the last typed character.
+    shown: list[str] = []
+
+    def fake_input(prompt: str = "") -> str:
+        shown.append(prompt)
+        return "look"
+
+    monkeypatch.setattr("builtins.input", fake_input)
+    terminal = Terminal(_colour_console())
+    terminal.margin = "    "
+    assert terminal.read() == "look"
+    assert terminal.console.file.getvalue() == ""  # type: ignore[attr-defined]
+    assert "\x1b[1m" in shown[0]
+    assert re.sub("\x01[^\x02]*\x02", "", shown[0]).startswith("    ")
 
 
 def test_piped_output_is_never_too_small() -> None:
