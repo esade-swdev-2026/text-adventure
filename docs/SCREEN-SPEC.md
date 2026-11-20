@@ -333,7 +333,7 @@ Same `[section]` syntax as before.
 | `[background]` | 92 × 24 | Line art only: the back wall's frame, the perspective edges, the lamp and its cable. Spaces are tone cells. |
 | `[shade]` | 92 × 24 | One digit `0`–`9` per cell: the surface's shade. A space or a missing row counts as `0`. |
 | `[light]` | 92 × 24 | One digit `0`–`9` per cell: the light falling there. A colour letter (`n`, `r`, `f`, `*`, section 7.2) fixes the cell's role instead and counts as `9` for the tone. A space counts as `0`. |
-| `[light:<state>]` | 92 × 24 | Optional. Replaces `[light]` while any object in the room is in `<state>` (power-on lighting, 5.5). |
+| `[light:<state>]` | 92 × 24 | Optional. Replaces `[light]` while any object in the room is in `<state>` (power-on lighting, 5.5). If objects in different states each match a map, the first container in `world.json` order wins, then the door. Items never pick a light map. |
 | `[name]`, `[name:<state>]` | its own size | A sprite, line art as before. |
 | `[name:shade]`, `[name:<state>:shade]` | same size as its sprite | Optional. Shade digits for the sprite's inside. Spaces inside the sprite's outline with no shade digit are black. |
 
@@ -341,6 +341,12 @@ Same `[section]` syntax as before.
 - Anything but digits in a `[shade]` section, or anything but digits and colour letters in a
   `[light]` section, is an error (`ArtError`), like a too-wide character.
 - An art file without `[shade]` draws every tone cell black, so line art alone still works.
+- An art file without `[light]` is lit evenly at level `6` (`DEFAULT_LIGHT`, the LIT band), so
+  its line art still reads.
+- Loading the world (`text-adventure check`) rejects a `[light:<state>]` whose state no
+  container or door in the room can reach, and any other section that is not a sprite or shade
+  map of a real object and state. A typo such as `[lihgt]` or `[light:powered on]` is an error,
+  not a section that silently never shows.
 
 ### 5.3 Perspective, light and objects
 
@@ -364,13 +370,15 @@ Same `[section]` syntax as before.
 - **Sprites overlap the background:** spaces outside a sprite row's outline are transparent
   (the background's line art and tone show through), spaces inside are opaque (the sprite's own
   shade, or black).
-- **Light sources:** line-art cells drawn with `▗▟█▙▖●*ϟ` where the light is `5` or more are
-  LIGHT (bold). This applies to line art only, never to tone cells, which use `█` too.
+- **Light sources:** line-art cells drawn with `▗▟▙▖●*ϟ` where the light is `5` or more are
+  LIGHT (bold). This applies to line art only, never to tone cells. `█` is not in the set: solid
+  edges of objects in the lamp's pool (the toolbox, the fuse box) would read as lights.
 - **The spotlight:** after `open`, `take`, `drop` or `use`, the object that changed is drawn in
   FOCUS for one turn (blank sprite rows excluded). Its characters, line art and tone alike, stay
   the same; only the role changes.
 - **Flashbulb flash (E5.2):** a `use` rule with `"flash": true` draws one frame of the picture
-  with every light level set to `9` and every cell in PLAIN bold (a white flash) for 0.15 s,
+  with every light level set to `9` and every shade raised to
+  at least `3` (so no cell stays black: 2 × 9 / 81 is under the threshold) and every cell in PLAIN bold (a white flash) for 0.15 s,
   then the room returns with the object it was used on in FOCUS. The borders, text, panels and
   prompt don't change, so only the picture flashes.
 
@@ -394,18 +402,22 @@ the package, the game never runs or imports it, and its output is a draft.
 When the fuse box reaches `power on`, the room switches to `[light:power on]` on that same turn.
 A ceiling tube comes on: the whole room lifts to light `5`–`8` (LIT and GLOW), so the corners
 that were black now show their walls, the lamp's pool is still the brightest place, and the
-door's red light (`r`) stays. The lamp stops flickering (5.6). The fuse box is in FOCUS for that
-turn, as for any `use`. This is the visual high point of the room.
+small red light by the door (`r`) comes on, as the story says: it is only in `[light:power on]`.
+The lamp stops flickering (5.6). The fuse box is in FOCUS for that turn, as for any `use`. This
+is the visual high point of the room.
 
 ### 5.6 Lamp flicker (E5.3)
 
-While the game waits for input in the room view and the power is off, the lamp flickers now
+While the game waits for input in the room view and the power is off (`[light:power on]` is
+not in use; other state light maps don't stop it), the lamp flickers now
 and then:
 
 - A **dip** draws the picture with every light digit lowered by 2 (never below 0; colour
   letters unchanged) for 70 ms, then draws it normally again.
 - A **flicker** is one dip, or two dips 70 ms apart. Flickers come at random intervals of 3 to
-  8 seconds. At most 3 dips in any 10 seconds: never a strobe.
+  8 seconds. At most 3 dips in any 10 seconds: never a strobe. The cap wins over the
+  interval: a flicker that would make a fourth dip in 10 seconds loses its second dip, or waits
+  until the oldest dip has left the window.
 - Only the picture rows (2-25) are redrawn. The cursor's position and the text being typed are
   saved and restored, so typing is never disturbed.
 - **No flicker** when: inspecting, the power is on, colour is off (section 6), stdout is not a
@@ -765,11 +777,13 @@ To add with E7, E5.1 and E5.3:
 | The tone formula: black below 0.24, ramp `░▒▓█` above, Bayer dither by position, same output every call | `test_art.py` |
 | `[shade]` and `[light]` accept only digits (and colour letters in `[light]`), must fit 92 × 24, missing cells are `0` | `test_art.py` |
 | A sprite's shade map must match its sprite's size; spaces inside the outline without shade are black | `test_art.py` |
-| `[light:<state>]` replaces `[light]` while an object in the room is in that state | `test_art.py` |
+| `[light:<state>]` replaces `[light]` while an object in the room is in that state; with two maps active, the first container wins | `test_art.py` |
+| An unknown `[light:<state>]` or a section that is no object's sprite is a `WorldError` | `test_world.py` |
 | `dimmed(light, by)` lowers every digit, never below 0, and leaves colour letters alone | `test_art.py` |
 | Picture shade maps: digits only, padded to size, tone only where the frame has a space | `test_art.py` |
 | Every tone cell is one of ` ░▒▓█`; every line-art cell keeps its background or sprite character | `test_screen.py` |
-| Light level picks SHADOW / DUSK / LIT / GLOW; LIGHT only on line-art light sources | `test_screen.py` |
+| Light level picks SHADOW / DUSK / LIT / GLOW; LIGHT only on line-art light sources (not `█`) | `test_screen.py` |
+| The flash leaves no tone cell black (shade raised to at least 3) | `test_screen.py` |
 | Colour letters `0`–`9` map to the same roles as light levels | `test_screen.py` |
 | Every palette colour has at least 3:1 contrast on black (computed from its hex) | `test_terminal.py` |
 | Flicker: dips are at most 3 in any 10 s; off when inspecting, power on, no colour, not a terminal or `--no-motion` | `test_terminal.py` |
