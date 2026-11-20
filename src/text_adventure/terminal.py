@@ -1,6 +1,7 @@
 """Draw a Screen with rich and read a line. The only module that prints during play."""
 
 import os
+import re
 import signal
 import threading
 import time
@@ -110,6 +111,11 @@ SAVE_CURSOR, RESTORE_CURSOR = "\x1b7", "\x1b8"
 HIDE_CURSOR, SHOW_CURSOR, RESET_STYLE = "\x1b[?25l", "\x1b[?25h", "\x1b[0m"
 JOIN_SECONDS = 1.0  # the longest to wait for the flicker thread to stop
 
+# readline skips what lies between these when it measures the prompt (RL_PROMPT_START_IGNORE
+# and RL_PROMPT_END_IGNORE), so colour codes don't count as width.
+ESCAPE_CODE = re.compile(r"\x1b\[[0-9;]*m")
+IGNORE_START, IGNORE_END = "\x01", "\x02"
+
 
 def picture_write(rows: Sequence[str], top: int, column: int) -> str:
     """The text that redraws the picture's rows in place and leaves the cursor where it was.
@@ -123,6 +129,16 @@ def picture_write(rows: Sequence[str], top: int, column: int) -> str:
     """
     moves = [f"\x1b[{top + 2 + n};{column}H{row}{RESET_STYLE}" for n, row in enumerate(rows)]
     return SAVE_CURSOR + HIDE_CURSOR + "".join(moves) + RESTORE_CURSOR + SHOW_CURSOR
+
+
+def readline_prompt(ansi: str) -> str:
+    """The prompt as `input()` should get it: each colour code wrapped so readline skips it.
+
+    The prompt must go to `input()`, not be printed before it. readline thinks the line
+    starts where its prompt does, so with an empty prompt, deleting the last typed character
+    redraws the line from column 0 and wipes out the margin and the room name.
+    """
+    return ESCAPE_CODE.sub(lambda code: IGNORE_START + code.group() + IGNORE_END, ansi)
 
 
 def _flicker_wait() -> tuple[float, float] | None:
@@ -349,6 +365,14 @@ class Terminal:
 
         readline.set_pre_input_hook(hook if typed else None)
 
+    def _prompt(self, prompt: str) -> str:
+        """The margin and prompt, styled, as the string `input()` shows (see readline_prompt)."""
+        text = Text(self.margin + self._text(prompt), style=self.styles[Role.PROMPT])
+        with self.console.capture() as captured:
+            self.console.print(text, end="", no_wrap=True, overflow="crop")
+        ansi = captured.get()
+        return ansi if readline is None else readline_prompt(ansi)
+
     def read(self) -> str:
         """Show the drawn screen's prompt and return the typed line (EOFError on Ctrl-D).
 
@@ -365,9 +389,7 @@ class Terminal:
             self._start_flicker()  # before _reading, so a resize can't interrupt the start
             self._reading = True
             try:
-                return self.console.input(
-                    Text(self.margin + self._text(prompt), style=self.styles[Role.PROMPT])
-                )
+                return input(self._prompt(prompt))
             except _Resized as resized:
                 typed = resized.typed
                 self._reading = False
