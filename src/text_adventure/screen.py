@@ -1,6 +1,6 @@
 """Build the screen as rows of text tagged with roles. terminal.py only adds style and prints.
 
-The layout follows docs/SCREEN-SPEC.md: a 96 × 29 block where every region has a fixed number
+The layout follows docs/SCREEN-SPEC.md: a 96 × 43 block where every region has a fixed number
 of rows, so the screen never changes shape between turns.
 """
 
@@ -13,7 +13,9 @@ from rich.cells import cell_len
 
 from .art import (
     ART_HEIGHT,
+    FULL_LIGHT,
     ICON,
+    LIGHT_LETTERS,
     LIT,
     SCREEN_WIDTH,
     Art,
@@ -21,12 +23,16 @@ from .art import (
     Frame,
     Picture,
     compose,
+    compose_shade,
+    level,
+    light_for,
     sprite_box,
+    tone,
 )
 from .models import DOOR, Container, Inventory, Room
 
 MIN_COLUMNS = 100
-MIN_ROWS = 30
+MIN_ROWS = 44
 BLOCK_WIDTH = SCREEN_WIDTH + 4  # picture + one cell of padding and one of border on each side
 BLOCK_HEIGHT = MIN_ROWS - 1  # the last terminal row stays spare, so Enter never scrolls
 PANEL_INNER_WIDTH = BLOCK_WIDTH - 2  # cells between the room panel's two side borders
@@ -41,7 +47,8 @@ ELLIPSIS = "…"
 # Where each region starts, counted from 0 (docs/SCREEN-SPEC.md §3 counts from 1).
 DESCRIPTION_ROW = ART_HEIGHT + 2
 PANELS_ROW = DESCRIPTION_ROW + DESCRIPTION_LINES + 1
-HISTORY_ROW = PANELS_ROW + 7
+PANEL_HEIGHT = ICON.height + 3  # a slot: frame, icon rows, name, frame
+HISTORY_ROW = PANELS_ROW + PANEL_HEIGHT + 1
 
 DOOR_CLOSED_TEXT = "The door is shut tight."
 DOOR_OPEN_TEXT = "The door stands open."
@@ -67,8 +74,10 @@ class Role(Enum):
 
     TITLE = auto()
     BORDER = auto()
-    SHADOW = auto()  # art outside the light
-    LIT = auto()  # art in the lamp's light
+    SHADOW = auto()  # art at light 0-2
+    DUSK = auto()  # art at light 3-4
+    LIT = auto()  # art at light 5-7
+    GLOW = auto()  # art at light 8-9
     LIGHT = auto()  # light sources in the light
     NIGHT = auto()
     DANGER = auto()
@@ -92,20 +101,34 @@ TONE_ROLES = {
     Tone.WIN: Role.WIN,
 }
 
-# A picture's colour letters (docs/SCREEN-SPEC.md §7.2).
+# The light scale (docs/SCREEN-SPEC.md §6): one role per band of light levels 0-9.
+LEVEL_ROLES = (
+    (Role.SHADOW,) * 3 + (Role.DUSK,) * 2 + (Role.LIT,) * 3 + (Role.GLOW,) * 2
+)  # index = light level
+
+# Cells of a light map or colour map with a fixed role instead of a light level.
+LETTER_ROLES = {"*": Role.LIGHT, "n": Role.NIGHT, "r": Role.DANGER, "f": Role.PLAIN}
+
+# A picture's colour letters (docs/SCREEN-SPEC.md §7.2): the letters above, light levels as
+# digits, and the older letters for shadow and light.
 COLOR_ROLES = {
     " ": Role.SHADOW,
     ".": Role.SHADOW,
     "s": Role.SHADOW,
     LIT: Role.LIT,
-    "*": Role.LIGHT,
-    "n": Role.NIGHT,
-    "r": Role.DANGER,
-    "f": Role.PLAIN,
+    **LETTER_ROLES,
+    **{str(n): role for n, role in enumerate(LEVEL_ROLES)},
 }
 
-# Characters drawn as light sources (bold) where the room's light falls.
-LIGHT_SOURCES = frozenset("▗▟█▙▖●*ϟ")
+# Line-art characters drawn as light sources (bold) where the light is LIGHT_SOURCE_LEVEL or
+# more. Tone cells never count. █ is left out: a solid edge in the lamp's pool (a toolbox, a fuse
+# box) would read as a light. A light map's `*` makes any cell LIGHT, █ included.
+LIGHT_SOURCES = frozenset("▗▟▙▖●*ϟ")
+LIGHT_SOURCE_LEVEL = 5
+
+# The lowest shade in the flash: 3 × 9 / 81 = 0.33 is above the black threshold (0.24), so every
+# tone cell shows (docs/SCREEN-SPEC.md §5.3).
+FLASH_SHADE = 3
 
 # The verb panel: (verb, short form). Help and Quit are about the game, so they sit back.
 VERBS = [
@@ -126,7 +149,7 @@ PANEL_GAP = "  "
 SLOTS = 4
 SLOT_WIDTH = 14
 SLOT_INNER = SLOT_WIDTH - 2
-ICON_PAD = "  "
+ICON_PAD = " "
 
 # Tab completion: verbs first, then a name for the verbs that take one.
 TAB_VERBS = ["look", "inspect", "open", "take", "drop", "use", "inventory", "help", "quit"]
@@ -286,28 +309,53 @@ def _runs(chars: str, roles: Sequence[Role]) -> Line:
     return line
 
 
-def room_picture(art: Art, room: Room, focus: Box | None = None) -> list[Line]:
-    """The room composed for its current state, each cell in shadow, light or the spotlight."""
+def _cell(char: str, shade: str, light: str, row: int, column: int) -> tuple[str, Role]:
+    """One picture cell (docs/SCREEN-SPEC.md §5.1): line art stays as drawn, a blank becomes
+    tone from its shade and light. The light picks the role, or a letter fixes it."""
+    strength = level(light)
+    drawn = char if char != " " else tone(level(shade), strength, row, column)
+    if light in LIGHT_LETTERS:
+        return drawn, LETTER_ROLES[light]
+    if char in LIGHT_SOURCES and strength >= LIGHT_SOURCE_LEVEL:
+        return drawn, Role.LIGHT
+    return drawn, LEVEL_ROLES[strength]
+
+
+def room_picture(
+    art: Art, room: Room, focus: Box | None = None, full_light: bool = False
+) -> list[Line]:
+    """The room composed for its current state: each cell line art or tone, in the role of
+    its light level, or in the spotlight. `full_light` lights every cell at level 9 and raises
+    every shade to at least FLASH_SHADE, so the flashbulb's flash has no black holes."""
+    light_map = light_for(art, room)
+    shades = compose_shade(art, room)
     lines = []
-    for row, cells in enumerate(compose(art, room)):
-
-        def role(column: int, char: str, row: int = row) -> Role:
-            if focus and focus.contains(row, column):
-                return Role.FOCUS
-            if art.light[row][column] == LIT:
-                return Role.LIGHT if char in LIGHT_SOURCES else Role.LIT
-            return Role.SHADOW
-
-        lines.append(_runs(cells, [role(column, char) for column, char in enumerate(cells)]))
+    for row, chars in enumerate(compose(art, room)):
+        cells = []
+        for column, char in enumerate(chars):
+            light = str(FULL_LIGHT) if full_light else light_map[row][column]
+            shade = shades[row][column]
+            if full_light:
+                shade = max(shade, str(FLASH_SHADE))
+            drawn, role = _cell(char, shade, light, row, column)
+            cells.append((drawn, Role.FOCUS if focus and focus.contains(row, column) else role))
+        lines.append(_runs("".join(c for c, _ in cells), [r for _, r in cells]))
     return lines
 
 
 def frame_lines(frame: Frame, focus: bool = False) -> list[Line]:
-    """A picture frame (close-up or icon) with each cell in its colour letter's role."""
-    return [
-        _runs(row, [Role.FOCUS if focus else COLOR_ROLES.get(c, Role.SHADOW) for c in colors])
-        for row, colors in zip(frame.rows, frame.colors, strict=True)
-    ]
+    """A picture frame (close-up or icon): blanks with a shade digit become tone (at full
+    light), and each cell takes its colour letter's role."""
+    lines = []
+    for row, (chars, colors) in enumerate(zip(frame.rows, frame.colors, strict=True)):
+        if frame.shade:
+            chars = "".join(
+                tone(level(shade), FULL_LIGHT, row, column) if char == " " else char
+                for column, (char, shade) in enumerate(zip(chars, frame.shade[row], strict=True))
+            )
+        roles = [Role.FOCUS if focus else COLOR_ROLES.get(c, Role.SHADOW) for c in colors]
+        lines.append(_runs(chars, roles))
+    return lines
 
 
 def moves_label(moves: int) -> str:
@@ -350,7 +398,8 @@ def _text(text: str, role: Role) -> Line:
 
 
 def verb_panel() -> list[Line]:
-    """The fixed verb panel: 4 rows of 2 cells, each a verb padded to 8 and its short form."""
+    """The fixed verb panel: 4 rows of 2 cells, each a verb padded to 8 and its short form,
+    then blank rows so it is as tall as the slots beside it."""
     rows: list[Line] = [[("╭" + "─" * (VERB_PANEL_WIDTH - 2) + "╮", Role.BORDER)]]
     for index in range(0, len(VERBS), 2):
         line: Line = [("│ ", Role.BORDER)]
@@ -362,12 +411,14 @@ def verb_panel() -> list[Line]:
             ]
         line.append((" │", Role.BORDER))
         rows.append(line)
+    while len(rows) < PANEL_HEIGHT - 1:
+        rows.append([("│" + " " * (VERB_PANEL_WIDTH - 2) + "│", Role.BORDER)])
     rows.append([("╰" + "─" * (VERB_PANEL_WIDTH - 2) + "╯", Role.BORDER)])
     return rows
 
 
 def slot(name: str | None, icon: Picture | None = None, focus: bool = False) -> list[Line]:
-    """One inventory slot, 14 × 6: a frame, the icon centred, the name under it."""
+    """One inventory slot, 14 × 7: a frame, the icon centred, the name under it."""
     border = Role.FOCUS if focus else Role.BORDER
     rows: list[Line] = [[("╭" + "─" * SLOT_INNER + "╮", border)]]
     icon_rows = frame_lines(icon.frame(), focus) if icon is not None else []
@@ -390,7 +441,7 @@ def slot(name: str | None, icon: Picture | None = None, focus: bool = False) -> 
 def panels(
     inventory: Inventory, icons: Mapping[str, Picture], focus: str | None = None
 ) -> list[Line]:
-    """The verb panel and the four inventory slots side by side (rows 18-23)."""
+    """The verb panel and the four inventory slots side by side (rows 31-37)."""
     items = inventory.items[:SLOTS]
     slots = [slot(item.name, icons.get(item.name), focus == item.name) for item in items] + [
         slot(None) for _ in range(SLOTS - len(items))
@@ -458,18 +509,19 @@ def build_screen(
     icons: Mapping[str, Picture] | None = None,
     focus: str | None = None,
     inspected: Inspected | None = None,
+    flash: bool = False,
 ) -> Screen:
     """The main screen, or the inspect view when `inspected` is given.
 
     `history` is every entry so far, oldest first (the intro first, as narration). `focus`
     names the thing the last command changed: its slot is spotlit if it is carried, its
-    sprite in the room otherwise.
+    sprite in the room otherwise. `flash` draws the room at full light, for the flashbulb.
     """
     icons = icons or {}
     carried = focus is not None and inventory.has_item(focus)
     room_focus = sprite_box(art, room, focus) if focus and not carried else None
     title, hint = room.name.upper(), ""
-    picture = room_picture(art, room, room_focus)
+    picture = room_picture(art, room, room_focus, full_light=flash)
     description = description_rows(room)
     if inspected is not None:
         title, hint = inspected.name.upper(), INSPECT_HINT
@@ -494,7 +546,8 @@ def build_screen(
 
 def flash_screen(screen: Screen) -> Screen:
     """The same screen with the whole picture in FOCUS: plain bold, a white flash
-    (docs/SCREEN-SPEC.md §5). The frame, text and panels stay as they are."""
+    (docs/SCREEN-SPEC.md §5.3). Build the screen with `flash=True` first, so the picture is at
+    full light. The frame, text and panels stay as they are."""
     rows = list(screen.rows)
     for index in range(1, 1 + ART_HEIGHT):  # the picture rows, between the panel's borders
         left, *picture, right = rows[index]

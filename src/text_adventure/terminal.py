@@ -25,16 +25,26 @@ from .screen import (
     too_small_lines,
 )
 
-# The palette in docs/SCREEN-SPEC.md §6: 256-colour numbers, foreground only. Each one keeps at
-# least 3:1 contrast on both black and white, so it reads on dark and light themes. Coloured
-# roles are never dim, because dim on a colour can vanish on some themes.
-SLATE, AMBER, GREY, BLUE, RED = "color(60)", "color(136)", "color(243)", "color(32)", "color(160)"
+# The palette in docs/SCREEN-SPEC.md §6: 256-colour numbers, foreground only, for dark themes.
+# Each one keeps at least 3:1 contrast on black. The picture's light scale runs from cold to
+# warm: SLATE, MAUVE, AMBER, GOLD, and PALE_GOLD for light sources. Coloured roles are never
+# dim, because dim on a colour can vanish on some themes.
+SLATE, MAUVE, AMBER, GOLD, PALE_GOLD = (
+    "color(60)",
+    "color(96)",
+    "color(136)",
+    "color(178)",
+    "color(221)",
+)
+GREY, BLUE, RED = "color(243)", "color(32)", "color(160)"
 COLOR_STYLES: dict[Role, str] = {
     Role.TITLE: "bold",
     Role.BORDER: GREY,
     Role.SHADOW: SLATE,
+    Role.DUSK: MAUVE,
     Role.LIT: AMBER,
-    Role.LIGHT: f"bold {AMBER}",
+    Role.GLOW: GOLD,
+    Role.LIGHT: f"bold {PALE_GOLD}",
     Role.NIGHT: BLUE,
     Role.DANGER: RED,
     Role.PLAIN: "",
@@ -57,7 +67,9 @@ NO_COLOR_STYLES: dict[Role, str] = {
     Role.TITLE: "bold",
     Role.BORDER: "dim",
     Role.SHADOW: "dim",
+    Role.DUSK: "dim",
     Role.LIT: "",
+    Role.GLOW: "",
     Role.LIGHT: "bold",
     Role.NIGHT: "",
     Role.DANGER: "",
@@ -128,8 +140,9 @@ class Terminal:
         self._redraw()
 
     def flash(self, screen: Screen) -> None:
-        """Draw the screen with its picture lit white for an instant. The caller then draws
-        the screen itself, so the room comes back after the flash."""
+        """Draw the screen with its picture lit white for an instant. `screen` is built at full
+        light (`build_screen(..., flash=True)`); the caller then draws the normal screen, so
+        the room comes back after the flash."""
         self.draw(flash_screen(screen))
         time.sleep(FLASH_SECONDS)
 

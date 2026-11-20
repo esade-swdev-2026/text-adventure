@@ -64,7 +64,7 @@ and CI resolve the same ones. When you change a dependency in `pyproject.toml`, 
 uv run text-adventure play
 ```
 
-Use a terminal of at least 100 × 30. Other commands:
+Use a terminal of at least 100 × 44 with a dark background. Other commands:
 
 ```
 uv run text-adventure --help
@@ -156,12 +156,13 @@ Names can be several words (`open fuse box`), and a leading "the" is ignored
 (`take the key`). Tab completes a verb, then the name of something you can see or carry
 (`open f` → `open fuse box`), and ↑ recalls earlier ones.
 
-**Terminal support:** needs a UTF-8 terminal of at least 100 × 30. The game uses 256 colours
-(slate shadow, amber lamplight, red for mistakes), picked to read on both light and dark
-themes; bold and dim carry the same meaning, so piped output and `TERM=dumb` get a black
-and white version. A terminal that can't show UTF-8 gets plain ASCII art. If you
-resize the window, the screen is redrawn at once; below 100 × 30 it asks for a bigger
-window. What you had typed is kept with GNU readline (most Linux builds) and lost with
+**Terminal support:** needs a UTF-8 terminal of at least 100 × 44, **with a dark
+background**. The room is drawn in line art and `░▒▓█` shading, light falling off from the
+lamp into true black, in 256 colours (slate shadow, amber lamplight, red for mistakes). On a
+light background the shading reads as a photo negative. Bold and dim carry the same meaning
+as the colours, so piped output and `TERM=dumb` get a black and white version, and a
+terminal that can't show UTF-8 gets plain ASCII art. If you resize the window, the screen is
+redrawn at once; below 100 × 44 it asks for a bigger window. What you had typed is kept with GNU readline (most Linux builds) and lost with
 libedit (the macOS default).
 
 ## The role of AI in this project

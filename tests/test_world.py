@@ -160,6 +160,29 @@ def test_broken_world_raises(change: Any, message: str) -> None:
         build_world(broken(change), ART, PICTURES)
 
 
+@pytest.mark.parametrize(
+    ("section", "message"),
+    [
+        ("[light:powered on]\n1\n", r"\[light:powered on\] is for a state"),
+        ("[light:lit]\n1\n", r"\[light:lit\] is for a state"),  # a story state nobody sets
+        ("[lihgt]\n1\n", r"\[lihgt\] is not the sprite"),
+        ("[desk:lit]\nx\n", r"\[desk:lit\] is not the sprite"),
+        ("[coin:open]\nx\n", r"\[coin:open\] is not the sprite"),
+    ],
+)
+def test_art_sections_must_belong_to_a_real_object_and_state(section: str, message: str) -> None:
+    art = {"room.txt": parse_art("[background]\n.\n" + section)}
+    with pytest.raises(WorldError, match=message):
+        build_world(BASE, art)
+
+
+def test_art_sections_for_real_objects_and_reachable_states_load() -> None:
+    sections = "[light:open]\n1\n[light:lit]\n2\n[light:unlocked]\n3\n[desk:lit]\nx\n[coin]\no\n"
+    art = {"room.txt": parse_art("[background]\n.\n" + sections)}
+    world = build_world(broken(with_a_puzzle), art)
+    assert set(world.art_for(world.first_room).lights) == {"open", "lit", "unlocked"}
+
+
 def with_pictures(room: dict[str, Any]) -> None:
     room["items"][0].update(icon="icon.txt", closeup="big.txt")
     room["containers"][0].update(closeup="big.txt")
