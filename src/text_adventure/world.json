@@ -225,7 +225,7 @@
                 "tray": "open"
               },
               "refusal": "Poke around behind a hot lamp? Not without a reason.",
-              "text": "You reach behind the housing with the tongs. Something on a hook gives, and a small key drops to the floor.",
+              "text": "You reach behind the housing with the tongs. Something on a hook gives, and a padlock key drops to the floor.",
               "state": "searched",
               "reveal": [
                 "padlock key"
@@ -241,7 +241,7 @@
           "name": "padlock key",
           "description": "small and steel",
           "hidden": true,
-          "floor_text": "A small key lies on the floor.",
+          "floor_text": "A padlock key lies on the floor.",
           "inspect": "Small and steel, still warm from the lamp. It fits a padlock, and there's only one padlock in here.",
           "sprite": [
             16,
@@ -446,7 +446,7 @@
           "name": "shutter key",
           "description": "heavy, on a red tag",
           "hidden": true,
-          "floor_text": "A key hangs on a nail.",
+          "floor_text": "A shutter key hangs on a nail.",
           "inspect": "Heavy, on a red tag: STREET DOOR. It hung in the dark where only the lantern could find it.",
           "sprite": [
             9,
@@ -529,7 +529,7 @@
           "uses": [
             {
               "item": "matchbook",
-              "text": "The wick takes. Warm light climbs the walls, and by the coat stand something glints: a key on a nail.",
+              "text": "The wick takes. Warm light climbs the walls, and by the coat stand something glints: a shutter key on a nail.",
               "state": "lit",
               "reveal": [
                 "shutter key"

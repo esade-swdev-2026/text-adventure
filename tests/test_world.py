@@ -402,3 +402,12 @@ def test_loose_items_in_the_built_in_world_are_drawn_where_they_start(world: Wor
         placements = world.art_for(room).placements
         for item in room.items + room.hidden:
             assert floor_key(item.name) not in placements, (room.name, item.name)
+
+
+def test_every_floor_text_names_its_item_as_typed(world: World) -> None:
+    # "A small key lies on the floor." left the player typing `take key`, but the item was
+    # the "padlock key": the sentence on screen must use the name the parser knows.
+    for room in world.rooms():
+        for item in room.items + room.hidden:
+            if item.floor_text:
+                assert item.name in item.floor_text.lower(), (room.name, item.name)
