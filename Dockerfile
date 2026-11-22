@@ -1,4 +1,6 @@
 FROM python:3.13-slim
+# Links the image published to ghcr.io to this repository.
+LABEL org.opencontainers.image.source=https://github.com/esade-swdev-2026/text-adventure
 COPY --from=ghcr.io/astral-sh/uv:0.13.5 /uv /bin/uv
 
 WORKDIR /app

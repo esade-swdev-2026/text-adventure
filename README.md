@@ -97,11 +97,11 @@ exit code 1
 
 ## Run with Docker
 
-Requires [Docker](https://docs.docker.com/get-docker/). From the cloned repository, build
-the image once:
+Requires [Docker](https://docs.docker.com/get-docker/). Every release publishes the image to
+GitHub Container Registry, so there is nothing to build. Pull it:
 
 ```
-docker build -t text-adventure .
+docker pull ghcr.io/esade-swdev-2026/text-adventure:latest
 ```
 
 The world (the story, the rooms and their art) lives **outside the image**. Download it from
@@ -116,21 +116,25 @@ unzip world.zip -d my-world
 container read-only (`:ro`) and play it. The game is interactive, so `play` needs `-it`:
 
 ```
-docker run --rm -it -v "$PWD/my-world":/world:ro text-adventure play --world /world/world.json
+docker run --rm -it -v "$PWD/my-world":/world:ro ghcr.io/esade-swdev-2026/text-adventure:latest play --world /world/world.json
 ```
 
 To check the mounted world loads and can be won without playing it (no `-it` needed):
 
 ```
-docker run --rm -v "$PWD/my-world":/world:ro text-adventure check /world/world.json
+docker run --rm -v "$PWD/my-world":/world:ro ghcr.io/esade-swdev-2026/text-adventure:latest check /world/world.json
 ```
 
 **The world changes without a rebuild.** Open `my-world/world.json`, change the room's
 `"description"`, save, and run the same `docker run ... play` command again: the game shows
-your new text. The image is the same one you built above. Only the mounted folder changed.
+your new text. The image is the same one you pulled above. Only the mounted folder changed.
 
 Any folder works the same way, as long as it holds the world file and every art file the
 world names, at the relative paths it gives them.
+
+To build the image yourself instead, run `docker build -t text-adventure .` in the cloned
+repository and use `text-adventure` in place of `ghcr.io/esade-swdev-2026/text-adventure:latest`
+in the commands above.
 
 ## How to play
 
@@ -169,7 +173,7 @@ terminal. If you resize the window, the screen is
 redrawn at once; below 100 × 44 it asks for a bigger window. What you had typed is kept with GNU readline (most Linux builds) and lost with
 libedit (the macOS default).
 
-## The role of AI in this project
+## Use of AI
 
 We used an AI coding assistant, and want to be clear about where.
 
@@ -199,7 +203,7 @@ the same four checks and pull-request review as the rest of the code.
 ```
 uv run ruff check .           # lint
 uv run ruff format .          # format (CI runs `--check` and fails on a diff)
-uv run mypy src tests scripts # types
+uv run mypy src tests scripts # types (strict)
 uv run pytest                 # tests
 ```
 
@@ -209,8 +213,10 @@ world mounted from outside it.
 
 To release, push a version tag (`git tag v0.7 && git push origin v0.7`).
 `.github/workflows/release.yml` packs `world.json` and `art/` into `world.zip`, checks the
-image can load it from a bind mount, and publishes a GitHub release with the zip attached.
-That is the file the "Run with Docker" section downloads.
+image can load it from a bind mount, then pushes the image to
+`ghcr.io/esade-swdev-2026/text-adventure` (tagged with the version and `latest`) and publishes
+a GitHub release with the zip attached. Those are the image and the file the "Run with
+Docker" section uses.
 
 ## Layout
 
