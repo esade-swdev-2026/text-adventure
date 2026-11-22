@@ -136,3 +136,55 @@ def test_surfaces_follow_the_back_walls_frame(bake: ModuleType, scene: dict[str,
     assert bake.surface(scene, wall["top"], middle) == "back_wall"
     assert bake.surface(scene, wall["bottom"] + 1, middle) == "floor"
     assert bake.surface(scene, wall["top"], wall["left"] - 1) == "side_walls"
+
+
+# Several lamps (E8.2)
+
+
+def light_rows(bake: ModuleType, scene: dict[str, Any], name: str = "light") -> list[str]:
+    return sections(bake.bake(scene))[name]
+
+
+def test_a_lamps_list_of_one_bakes_like_the_single_lamp(
+    bake: ModuleType, scene: dict[str, Any]
+) -> None:
+    as_list = {key: value for key, value in scene.items() if key != "lamp"}
+    as_list["lamps"] = [scene["lamp"]]
+    assert bake.bake(as_list) == bake.bake(scene)
+
+
+def test_one_lamp_alone_gives_exactly_its_own_light(
+    bake: ModuleType, scene: dict[str, Any]
+) -> None:
+    lamp = scene["lamp"]
+    for row, column in [(0, 0), (6, 31), (20, 50)]:
+        assert bake.lamps_at([lamp], row, column) == bake.lamp_at(lamp, row, column)
+
+
+def test_a_second_lamp_only_adds_light_and_never_passes_full(
+    bake: ModuleType, scene: dict[str, Any]
+) -> None:
+    second = {**scene["lamp"], "column": 70}
+    both = {**scene, "lamps": [second]}
+    one, two = light_rows(bake, scene), light_rows(bake, both)
+    pairs = [
+        (a, b)
+        for row_a, row_b in zip(one, two, strict=True)
+        for a, b in zip(row_a, row_b, strict=True)
+    ]
+    digits = [(int(a), int(b)) for a, b in pairs if a.isdigit() and b.isdigit()]
+    assert all(b >= a for a, b in digits)
+    assert any(b > a for a, b in digits)
+    lamp = scene["lamp"]
+    assert bake.lamps_at([lamp, second], 6, 31) <= 1.0
+
+
+def test_a_light_state_can_switch_on_a_lamp_of_its_own(
+    bake: ModuleType, scene: dict[str, Any]
+) -> None:
+    beam = {**scene["lamp"], "column": 70, "row": 10}
+    state = {"state": "focused", "lamps": [beam]}
+    with_beam = {**scene, "light_state": [state]}
+    off, on = light_rows(bake, with_beam), light_rows(bake, with_beam, "light:focused")
+    assert off == light_rows(bake, scene)  # the beam is dark until the state
+    assert on != off

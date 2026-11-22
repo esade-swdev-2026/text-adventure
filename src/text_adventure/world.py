@@ -17,8 +17,10 @@ from .art import (
 )
 from .commands import ON_WORDS
 from .models import (
+    AMBER,
     CLOSED,
     DOOR,
+    LIGHT_COLORS,
     LOCKED,
     OPEN,
     UNLOCKED,
@@ -356,6 +358,9 @@ def _build_door(door_json: Any, where: str, drawing: _RoomDrawing) -> Door:
     door_sprites = [sprite_key(DOOR, state) for state in (LOCKED, UNLOCKED, OPEN)]
     drawing.place(DOOR, _placement(door_json, where), door_sprites)
     needs, refusal = _needs(door_json, where)
+    carry = _get(door_json, "carry", list, where, [])
+    if not all(isinstance(name, str) for name in carry):
+        raise WorldError(f'{where}: "carry" must be a list of item names')
     return Door(  # linked to the next room once every room is built
         None,
         required,
@@ -365,6 +370,7 @@ def _build_door(door_json: Any, where: str, drawing: _RoomDrawing) -> Door:
         room_texts=_room_texts(door_json, where),
         details=_details(door_json, where),
         uses=_build_uses(door_json, where),
+        carry=tuple(carry),
     )
 
 
@@ -398,7 +404,19 @@ def _build_room(
     door_closeup = pictures.find(door_json, "closeup", CLOSEUP, f"{where} door")
     pictures.add(pictures.door_closeups, name, door_closeup)
     description = _get(room_json, "description", str, where)
-    room = Room(name, description, door, containers, items, hidden)
+    light = _get(room_json, "light", str, where, AMBER)
+    if light not in LIGHT_COLORS:
+        raise WorldError(f'{where}: "light" must be one of {", ".join(LIGHT_COLORS)}')
+    room = Room(
+        name,
+        description,
+        door,
+        containers,
+        items,
+        hidden,
+        flicker=_get(room_json, "flicker", bool, where, True),
+        light=light,
+    )
     return _BuiltRoom(
         room,
         _optional_str(door_json, "next_room", f"{where} door"),
@@ -521,6 +539,37 @@ def _link_doors(rooms: dict[str, Room], next_ids: dict[str, str | None]) -> None
         raise WorldError("exactly one door, the last room's, must lead out (next_room: null)")
 
 
+def _uses_item(room: Room, name: str) -> bool:
+    """True if something in this room is opened, unlocked or changed with the item."""
+    for thing in _room_things(room).values():
+        if any(use.item == name for use in thing.uses):
+            return True
+        if not isinstance(thing, Item) and thing.required_item == name:
+            return True
+    return False
+
+
+def _check_carry(first_room: Room) -> None:
+    """Each door's "carry" names an item from this room or an earlier one that the next room
+    uses, so the player can't leave it behind a one-way door. The way out carries nothing."""
+    seen: set[str] = set()
+    visited: list[Room] = []
+    room: Room | None = first_room
+    while room is not None and room not in visited:
+        visited.append(room)
+        where = f'room "{room.name}" door'
+        seen |= {item.name for item in _all_items([room])}
+        next_room = room.door.next_room
+        if room.door.carry and next_room is None:
+            raise WorldError(f'{where}: the way out has nothing to "carry" to')
+        for name in room.door.carry:
+            if name not in seen:
+                raise WorldError(f'{where}: carry "{name}" isn\'t in this room or an earlier one')
+            if next_room is not None and not _uses_item(next_room, name):
+                raise WorldError(f'{where}: carry "{name}", but "{next_room.name}" never uses it')
+        room = next_room
+
+
 def art_paths(world_json: Any) -> list[str]:
     """The art file named by each room, skipping anything malformed (build_world reports it)."""
     rooms = world_json.get("rooms") if isinstance(world_json, dict) else None
@@ -596,6 +645,7 @@ def build_world(
     for room in rooms.values():
         _check_art_sections(room, room_art[room.name], _check_room_uses(room, item_names))
     _link_doors(rooms, next_ids)
+    _check_carry(rooms[next(iter(rooms))])
     return World(
         rooms[next(iter(rooms))],
         _get(world_json, "intro", str, "world", ""),

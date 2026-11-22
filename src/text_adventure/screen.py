@@ -30,7 +30,7 @@ from .art import (
     sprite_box,
     tone,
 )
-from .models import DOOR, Container, Inventory, Room
+from .models import DOOR, RED, Container, Inventory, Room
 
 MIN_COLUMNS = 100
 MIN_ROWS = 44
@@ -80,6 +80,9 @@ class Role(Enum):
     LIT = auto()  # art at light 5-7
     GLOW = auto()  # art at light 8-9
     LIGHT = auto()  # light sources in the light
+    RED_LIT = auto()  # LIT, GLOW and LIGHT in a room with red light (§5.7)
+    RED_GLOW = auto()
+    RED_LIGHT = auto()
     NIGHT = auto()
     DANGER = auto()
     PLAIN = auto()  # art in the terminal's own colour, e.g. clue text
@@ -106,6 +109,9 @@ TONE_ROLES = {
 LEVEL_ROLES = (
     (Role.SHADOW,) * 3 + (Role.DUSK,) * 2 + (Role.LIT,) * 3 + (Role.GLOW,) * 2
 )  # index = light level
+
+# In a room with red light (the darkroom's safelight) the warm roles turn red (§5.7).
+RED_ROLES = {Role.LIT: Role.RED_LIT, Role.GLOW: Role.RED_GLOW, Role.LIGHT: Role.RED_LIGHT}
 
 # Cells of a light map or colour map with a fixed role instead of a light level.
 LETTER_ROLES = {"*": Role.LIGHT, "n": Role.NIGHT, "r": Role.DANGER, "f": Role.PLAIN}
@@ -332,9 +338,11 @@ def room_picture(
     """The room composed for its current state: each cell line art or tone, in the role of
     its light level, or in the spotlight. `full_light` lights every cell at level 9 and raises
     every shade to at least FLASH_SHADE, so the flashbulb's flash has no black holes;
-    `light_map` replaces the room's light map (the lamp's dip)."""
+    `light_map` replaces the room's light map (the lamp's dip). In a room with red light,
+    LIT, GLOW and LIGHT are drawn in their red roles."""
     light_map = light_for(art, room) if light_map is None else light_map
     shades = compose_shade(art, room)
+    tint = RED_ROLES if room.light == RED else {}
     lines = []
     for row, chars in enumerate(compose(art, room)):
         cells = []
@@ -344,6 +352,7 @@ def room_picture(
             if full_light:
                 shade = max(shade, str(FLASH_SHADE))
             drawn, role = _cell(char, shade, light, row, column)
+            role = tint.get(role, role)
             cells.append((drawn, Role.FOCUS if focus and focus.contains(row, column) else role))
         lines.append(_runs("".join(c for c, _ in cells), [r for _, r in cells]))
     return lines

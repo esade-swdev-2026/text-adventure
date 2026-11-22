@@ -7,8 +7,9 @@ in the real game. Never paste over hand edits without reading the diff.
     uv run python scripts/bake_light.py scripts/scenes/electrical_room.toml
 
 The scene file describes the back wall's rectangle, a shade per surface (with plank and seam
-texture), the lamp, colour letters stamped onto rectangles, and the extra light of each light
-state ("power on"). See scripts/scenes/electrical_room.toml.
+texture), the lamp (`[lamp]`, or several as `[[lamps]]`), colour letters stamped onto
+rectangles, and the extra light of each light state ("power on"), which may switch on lamps of
+its own. See scripts/scenes/electrical_room.toml.
 """
 
 import argparse
@@ -75,6 +76,21 @@ def lamp_at(lamp: dict[str, Any], row: int, column: int) -> float:
     return min(1.0, falloff * (lamp["glow"] + (1 - lamp["glow"]) * cone) * lamp["power"])
 
 
+def lamps_at(lamps: list[dict[str, Any]], row: int, column: int) -> float:
+    """How much light several lamps give a cell together, 0 to 1. Each lamp lights what the
+    others leave dark, so the sum never passes 1; one lamp gives exactly its own light."""
+    total = 0.0
+    for lamp in lamps:
+        strength = lamp_at(lamp, row, column)
+        total = strength if not total else total + strength - total * strength
+    return total
+
+
+def scene_lamps(scene: dict[str, Any]) -> list[dict[str, Any]]:
+    """The lamps that are always on: `[lamp]` and every `[[lamps]]`."""
+    return ([scene["lamp"]] if "lamp" in scene else []) + scene.get("lamps", [])
+
+
 def light_level(strength: float, ambient: int) -> int:
     """A light digit: the lamp's share, or with a light state's ambient light at least
     `ambient` (more near the lamp), kept below full light so the lamp stays brightest."""
@@ -99,22 +115,24 @@ def bake(scene: dict[str, Any]) -> str:
     width, height = scene["width"], scene["height"]
     cells = [(row, column) for row in range(height) for column in range(width)]
     shade = [[" "] * width for _ in range(height)]
-    lamp = [[0.0] * width for _ in range(height)]
     for row, column in cells:
         shade[row][column] = str(shade_at(scene, row, column))
-        lamp[row][column] = lamp_at(scene["lamp"], row, column)
 
-    def light_map(ambient: int, extra: list[dict[str, Any]]) -> list[list[str]]:
+    def light_map(
+        ambient: int, extra: list[dict[str, Any]], lamps: list[dict[str, Any]]
+    ) -> list[list[str]]:
         grid = [[" "] * width for _ in range(height)]
         for row, column in cells:
-            grid[row][column] = str(light_level(lamp[row][column], ambient))
+            grid[row][column] = str(light_level(lamps_at(lamps, row, column), ambient))
         stamp(grid, scene.get("marks", []) + extra)
         return grid
 
-    sections = [("shade", shade), ("light", light_map(0, []))]
+    lamps = scene_lamps(scene)
+    sections = [("shade", shade), ("light", light_map(0, [], lamps))]
     for state in scene.get("light_state", []):
-        extra = state.get("marks", [])
-        sections.append((f"light:{state['state']}", light_map(state["ambient"], extra)))
+        extra, more = state.get("marks", []), state.get("lamps", [])
+        grid = light_map(state.get("ambient", 0), extra, lamps + more)
+        sections.append((f"light:{state['state']}", grid))
     out = []
     for name, grid in sections:
         out.append(f"[{name}]")

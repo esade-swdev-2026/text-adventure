@@ -23,7 +23,7 @@ from text_adventure.world import World
 
 # The 256-colour numbers docs/SCREEN-SPEC.md §6 allows: the light scale (slate, mauve, amber,
 # gold, pale gold), grey, blue and red.
-PALETTE = {60, 96, 136, 178, 221, 243, 32, 160}
+PALETTE = {60, 96, 136, 178, 221, 243, 32, 160, 167, 203, 210}
 
 
 def _contrast_on_black(number: int) -> float:

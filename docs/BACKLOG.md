@@ -91,6 +91,20 @@ prototype; see SCREEN-SPEC §1, §2, §5, §6 and §7.
 | E7.3 | **Room art and light baking** | `scripts/bake_light.py` and a scene file bake the shade and light maps as a draft; the electrical room is redrawn at 92 × 24 with sprites about twice as tall, then edited by hand and checked with pilotty. | L | Must | E7.2 |
 | E7.4 | **Close-up and icons** | The screwdriver close-up redrawn at 92 × 24 as a fully shaded object; the five icons redrawn at 10 × 4 with shading. Built: the close-up is drafted by `scripts/bake_closeup.py` (SCREEN-SPEC §7.1), then edited by hand. | M | Must | E7.2 |
 
+## E8 · More rooms
+
+Two more rooms at the Electrical Room's level: about 12 moves each, a tool-locked container, a
+story state with `needs`, a hidden item revealed by a `use`, a key and a condition on the door,
+92 × 24 tonal art with baked light, 10 × 4 icons and a close-up. Electrical Room → Darkroom →
+Night Office → the street. Each room needs one tool from the room before (SCREEN-SPEC §5.7).
+
+| ID | Feature | Description | Size | Priority | Depends on |
+|---|---|---|---|---|---|
+| E8.1 | **Spec** | SCREEN-SPEC §5.7: entering a room, light colour and flicker per room, the carry guard; the red light scale in §6. | S | Must | |
+| E8.2 | **Engine** | `carry` on doors (refuse to leave a needed tool behind, checked by `build_world`), `flicker` and `light` per room, several lamps in `scripts/bake_light.py`. | M | Must | E8.1 |
+| E8.3 | **Darkroom** | Red safelight, no flicker. Wrench opens the cabinet; lens and negatives in the enlarger print a photograph; the photo shows where V. hid the padlock key; tongs reach behind the hot safelight. Art, four icons, the photograph close-up. | L | Must | E8.2 |
+| E8.4 | **Night Office** | Neon through the blinds. Tongs fish a matchbook from behind the radiator; the lantern lit shows the shutter key; the coat, desk and alarm panel open in turn; the street door wins. Art, four icons, the matchbook close-up. Par 36. | L | Must | E8.3 |
+
 ---
 
 ## Suggested order
@@ -101,7 +115,8 @@ prototype; see SCREEN-SPEC §1, §2, §5, §6 and §7.
 4. **Content:** E2.4 icons, E3.2 close-ups, E1.4 + E3.3 puzzle chain and clues
 5. **Polish:** E6.1 intro, E5.1, E5.2, E6.2, E2.6–E2.8, E4.3, E1.6
 6. **Tonal art:** E7.1, E7.2, E7.3 + E7.4, then E5.1 power-on and E5.3 flicker
-7. **Stretch:** E2.9 clickable verbs
+7. **More rooms:** E8.1, E8.2, E8.3, E8.4
+8. **Stretch:** E2.9 clickable verbs
 
 ## Open questions
 

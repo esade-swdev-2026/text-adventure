@@ -1,4 +1,5 @@
 import copy
+import re
 import textwrap
 from typing import Any
 
@@ -315,3 +316,77 @@ def test_room_text_states_are_checked() -> None:
     assert desk_ is not None and desk_.room_sentence() == ""  # no closed_text either
     desk_.is_open = True
     assert desk_.room_sentence() == "Wide."
+
+
+# Rooms after the first (docs/SCREEN-SPEC.md §5.7)
+
+
+def chain(carry: list[str], uses_rope: bool = True, last_carry: list[str] | None = None) -> Any:
+    """Lab → Yard. The lab's door carries `carry`; the yard's well takes the rope if
+    `uses_rope`."""
+    data = copy.deepcopy(BASE)
+    lab = data["rooms"][0]
+    lab["items"].append({"name": "rope"})
+    lab["door"].update(next_room="r2", carry=carry)
+    well: dict[str, Any] = {"name": "well"}
+    if uses_rope:
+        well["uses"] = [{"item": "rope", "text": "Down."}]
+    door: dict[str, Any] = {"required_item": "pass", "next_room": None}
+    if last_carry is not None:
+        door["carry"] = last_carry
+    data["rooms"].append(
+        {
+            "id": "r2",
+            "name": "Yard",
+            "description": "A yard.",
+            "art": "room.txt",
+            "items": [{"name": "pass"}],
+            "containers": [well],
+            "door": door,
+        }
+    )
+    return data
+
+
+def test_a_door_can_carry_a_tool_the_next_room_uses() -> None:
+    world = build_world(chain(["rope"]), ART)
+    assert world.first_room.door.carry == ("rope",)
+    assert world.rooms()[1].door.carry == ()
+
+
+@pytest.mark.parametrize(
+    ("data", "message"),
+    [
+        (chain(["ghost"]), 'carry "ghost" isn\'t in this room or an earlier one'),
+        (chain(["pass"]), 'carry "pass" isn\'t in this room or an earlier one'),
+        (chain(["rope"], uses_rope=False), '"Yard" never uses it'),
+        (chain([], last_carry=["rope"]), 'the way out has nothing to "carry" to'),
+        (chain("rope"), '"carry" (list)'),  # type: ignore[arg-type]
+    ],
+    ids=["unknown", "from a later room", "not used", "way out", "not a list"],
+)
+def test_carry_must_name_an_earlier_item_the_next_room_uses(data: Any, message: str) -> None:
+    with pytest.raises(WorldError, match=re.escape(message)):
+        build_world(data, ART)
+
+
+def test_a_required_item_counts_as_a_use_for_carry() -> None:
+    data = chain(["rope"], uses_rope=False)
+    data["rooms"][1]["containers"][0]["required_item"] = "rope"
+    build_world(data, ART)
+
+
+def test_flicker_and_light_default_to_a_flickering_amber_room() -> None:
+    room = build_world(BASE, ART).first_room
+    assert room.flicker and room.light == "amber"
+    room = build_world(broken(lambda r: r.update(flicker=False, light="red")), ART).first_room
+    assert not room.flicker and room.light == "red"
+
+
+@pytest.mark.parametrize(
+    ("change", "message"),
+    [({"light": "green"}, '"light" must be one of amber, red'), ({"flicker": "no"}, '"flicker"')],
+)
+def test_flicker_and_light_are_checked(change: dict[str, Any], message: str) -> None:
+    with pytest.raises(WorldError, match=re.escape(message)):
+        build_world(broken(lambda room: room.update(change)), ART)
