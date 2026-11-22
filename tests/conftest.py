@@ -52,6 +52,19 @@ def win_script() -> list[str]:
         "take padlock key",
         "use padlock key on door",
         "open door",
+        # Night Office: the inventory is full by the letter opener, so a spent tool goes
+        "use tongs on radiator",
+        "take matchbook",
+        "use matchbook on lantern",
+        "take shutter key",
+        "open coat",
+        "take desk key",
+        "open desk",
+        "drop wrench",
+        "take letter opener",
+        "use letter opener on alarm panel",
+        "use shutter key on door",
+        "open door",
     ]
 
 

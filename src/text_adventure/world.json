@@ -1,7 +1,7 @@
 {
   "intro": "The power died an hour ago. Somebody wanted you in the dark. Find a way out.",
   "ending": "Cold air rushes in. Beyond the door the city glitters under a wet night sky, and for the first time tonight you can see where you're going.",
-  "par": 24,
+  "par": 36,
   "rooms": [
     {
       "id": "electrical",
@@ -225,7 +225,7 @@
                 "tray": "open"
               },
               "refusal": "Poke around behind a hot lamp? Not without a reason.",
-              "text": "You reach behind the housing with the tongs. Something on a hook gives, and a small key drops to the floor.",
+              "text": "You reach behind the housing with the tongs. Something on a hook gives, and a padlock key drops to the floor.",
               "state": "searched",
               "reveal": [
                 "padlock key"
@@ -241,7 +241,7 @@
           "name": "padlock key",
           "description": "small and steel",
           "hidden": true,
-          "floor_text": "A small key lies on the floor.",
+          "floor_text": "A padlock key lies on the floor.",
           "inspect": "Small and steel, still warm from the lamp. It fits a padlock, and there's only one padlock in here.",
           "sprite": [
             16,
@@ -376,7 +376,7 @@
       ],
       "door": {
         "required_item": "padlock key",
-        "next_room": null,
+        "next_room": "office",
         "unlock_text": "The padlock springs open and drops off the bolt.",
         "room_text": {
           "locked": "The door is padlocked.",
@@ -387,6 +387,193 @@
           "locked": "A light-tight door, a bolt across it and a padlock through the bolt. Fresh oil on the shackle.",
           "unlocked": "The padlock hangs open. Nothing holds the bolt now.",
           "open": "The door stands open on a flight of stairs going up."
+        },
+        "sprite": [
+          5,
+          63
+        ],
+        "carry": [
+          "tongs"
+        ]
+      }
+    },
+    {
+      "id": "office",
+      "name": "Night Office",
+      "description": "Neon leaks through the blinds.",
+      "art": "art/night_office.txt",
+      "flicker": false,
+      "items": [
+        {
+          "name": "radiator",
+          "portable": false,
+          "floor_text": "A radiator ticks.",
+          "inspect": {
+            "": "Cast iron, too hot to touch. Something has slipped down behind it, out of reach of fingers.",
+            "searched": "Cast iron, ticking. Nothing behind it now but dust."
+          },
+          "uses": [
+            {
+              "item": "tongs",
+              "text": "You fish behind the hot radiator. The tongs come back scorched, holding a matchbook.",
+              "state": "searched",
+              "reveal": [
+                "matchbook"
+              ],
+              "consume": true
+            }
+          ],
+          "sprite": [
+            11,
+            33
+          ]
+        },
+        {
+          "name": "matchbook",
+          "description": "from the Blue Lantern",
+          "hidden": true,
+          "floor_text": "A matchbook lies here.",
+          "inspect": "From the Blue Lantern club. Inside the flap, in pencil: \"the lamp in his office. light it, and look where the light falls. then go. don't wait for me. V.\"",
+          "refusal": "Not that. Somewhere in here wants lighting.",
+          "closeup": "art/closeups/matchbook.txt",
+          "sprite": [
+            15,
+            36
+          ],
+          "icon": "art/icons/matchbook.txt"
+        },
+        {
+          "name": "shutter key",
+          "description": "heavy, on a red tag",
+          "hidden": true,
+          "floor_text": "A shutter key hangs on a nail.",
+          "inspect": "Heavy, on a red tag: STREET DOOR. It hung in the dark where only the lantern could find it.",
+          "sprite": [
+            9,
+            25
+          ],
+          "icon": "art/icons/shutter_key.txt"
+        }
+      ],
+      "containers": [
+        {
+          "name": "coat",
+          "closed_text": "A coat hangs on a stand.",
+          "open_text": "The coat hangs open.",
+          "inspect": {
+            "closed": "The night watchman's coat, still damp at the shoulders. Its pockets sag with something.",
+            "open": "Empty pockets and the smell of rain. He left in a hurry, or somebody hurried him."
+          },
+          "sprite": [
+            4,
+            17
+          ],
+          "contents": [
+            {
+              "name": "desk key",
+              "description": "small and brass",
+              "inspect": "A small brass key, the kind that fits a desk drawer.",
+              "sprite": [
+                7,
+                19
+              ],
+              "floor": [
+                20,
+                66
+              ],
+              "icon": "art/icons/desk_key.txt"
+            }
+          ]
+        },
+        {
+          "name": "desk",
+          "required_item": "desk key",
+          "closed_text": "A desk drawer is locked.",
+          "open_text": "The drawer is open.",
+          "inspect": {
+            "closed": "The watchman's desk, the drawer locked. A logbook on top, the last entry torn out.",
+            "open": "Pencils, a ruler, a cold cup of coffee. And nothing else to stop a nosy guest."
+          },
+          "sprite": [
+            16,
+            40
+          ],
+          "contents": [
+            {
+              "name": "letter opener",
+              "description": "thin and steel",
+              "inspect": "Thin steel with a flat tip. It would pry a cover off as well as open a letter.",
+              "sprite": [
+                19,
+                43
+              ],
+              "floor": [
+                22,
+                50
+              ],
+              "icon": "art/icons/letter_opener.txt"
+            }
+          ]
+        },
+        {
+          "name": "lantern",
+          "room_text": {
+            "closed": "A lantern stands dark.",
+            "open": "The lantern is open.",
+            "lit": "The lantern burns."
+          },
+          "inspect": {
+            "closed": "An oil lantern with a good wick and nothing to light it with.",
+            "lit": "A steady yellow flame. The corners of the room have come out of the dark."
+          },
+          "uses": [
+            {
+              "item": "matchbook",
+              "text": "The wick takes. Warm light climbs the walls, and by the coat stand something glints: a shutter key on a nail.",
+              "state": "lit",
+              "reveal": [
+                "shutter key"
+              ],
+              "consume": true
+            }
+          ],
+          "sprite": [
+            13,
+            54
+          ]
+        },
+        {
+          "name": "alarm panel",
+          "required_item": "letter opener",
+          "closed_text": "An alarm blinks red.",
+          "open_text": "The alarm is dead.",
+          "inspect": {
+            "closed": "A red light, blinking. A thin seam runs round the cover where a blade might go.",
+            "open": "Wires and a battery, prised loose. The red light is dead."
+          },
+          "sprite": [
+            5,
+            53
+          ]
+        }
+      ],
+      "door": {
+        "required_item": "shutter key",
+        "next_room": null,
+        "needs": {
+          "alarm panel": "open"
+        },
+        "refusal": "The key turns halfway and stops. Over the desk the alarm panel blinks: cut it first, or the whole street wakes.",
+        "unlock_text": "The key turns all the way. The bolt slides back.",
+        "room_text": {
+          "locked": "The street door is locked.",
+          "unlocked": "The street door is unlocked.",
+          "open": "The street door is open."
+        },
+        "inspect": {
+          "locked": "Steel, with a pane of wired glass. Neon on the wet street outside. The lock wants a heavy key.",
+          "unlocked": "The bolt is back. One push and you're out.",
+          "open": "The door stands open on a wet, glittering night."
         },
         "sprite": [
           5,

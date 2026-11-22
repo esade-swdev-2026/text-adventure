@@ -6,7 +6,8 @@ and unlock the door to escape. Every command redraws the room, so you can see wh
 is a group project for Software Development for Business at ESADE, built for anyone who wants a
 short puzzle game, and for the team to practise clean, tested Python.
 
-Version 0.5 has **one room, playable from start to win**. Version 1.0 will have three. How
+The game has **three rooms, playable from start to win**: the Electrical Room, the Darkroom
+and the Night Office, then the street. How
 the code is organised, how a turn flows through it, and every design decision are documented in
 [ARCHITECTURE.md](ARCHITECTURE.md). The screen layout is specified in
 [docs/SCREEN-SPEC.md](docs/SCREEN-SPEC.md).
@@ -79,8 +80,8 @@ so these don't fail the check). A world that can't be won, or whose `par` is bel
 shortest win, fails with exit code 1:
 
 ```
-OK: src/text_adventure/world.json has 1 room(s), 3 containers and 5 items. The game starts in the Electrical Room.
-The shortest win takes 12 moves. Par is 12.
+OK: src/text_adventure/world.json has 3 room(s), 11 containers and 16 items. The game starts in the Electrical Room.
+The shortest win takes 36 moves. Par is 36.
 Warning: item "flashbulb" has no close-up.
 Warning: item "wrench" has no close-up.
 ...
