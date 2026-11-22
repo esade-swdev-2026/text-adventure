@@ -629,7 +629,7 @@ Paths are relative to the world file, like `art`. `cli.load_world` reads every f
 Missing art is a warning while the art is being drawn (E2.4, E3.2). E1.6 may turn it into an
 error once every object has its pictures.
 
-## 8. Intro screen (E6)
+## 8. Intro screen (E6, not built)
 
 Shown once at launch, before the room. Same 96 × 43 block, no border: the portrait is the frame.
 The layout below is 27 rows tall and sits centred in the block, on rows 9-35; the rows above
@@ -670,7 +670,7 @@ row    region
 - Enter starts the game. `q`, `quit`, Ctrl-C and Ctrl-D quit with "Goodbye.". Anything else is
   ignored. The intro is not a move.
 
-## 9. Ending screen (E6)
+## 9. Ending screen (E6, not built)
 
 Replaces the v0.5 win screen. Drawn at the top of the block (rows 1-35) so the panel doesn't
 jump; rows 36-43 stay blank.
@@ -780,8 +780,8 @@ From v0.5 to the colour screen (E2, E4):
 | `Carrying (n/4): …` in the bottom border | 4 icon slots beside a verb panel |
 | `Try  open toolbox · …` hints | Removed. Verb panel lists verbs only |
 | One last result, 2 rows | History of 2-3 entries, newest bold |
-| Intro in the result area | Intro screen with portrait |
-| Win screen with the ending text | Ending screen with moves and par, play again |
+| Intro in the result area | Intro screen with portrait (planned, E6) |
+| Win screen with the ending text | Ending screen with moves and par, play again (planned, E6) |
 | Black and white | 256-colour noir; black and white is the fallback |
 | Resize noticed after the next command | Redraw on resize |
 
@@ -827,9 +827,9 @@ Built (E0.2, E2, E4), with sizes updated by E7.2:
 | Move counter text and position in the border | `test_screen.py` |
 | Every role has a colour and a no-colour style; colours are the palette's, never dim, same weight as the fallback | `test_terminal.py` |
 | Colour prints as 256-colour codes, never truecolor; piped output has no colour | `test_terminal.py` |
-| `NO_COLOR` and `--no-color` give the fallback | `test_terminal.py` (E4.3) |
+| `NO_COLOR` and `--no-color` give the fallback | `test_terminal.py`, once E4.3 is built |
 
-To add with E7, E5.1 and E5.3:
+Added with E7, E5.1 and E5.3:
 
 | Rule | Test |
 |---|---|
@@ -844,7 +844,7 @@ To add with E7, E5.1 and E5.3:
 | Every palette colour has at least 3:1 contrast on black (computed from its hex) | `test_terminal.py` |
 | The real screen at 100 × 44 and 140 × 50, too small, resize, power on, a flicker during typing (`TEXT_ADVENTURE_FLICKER_EVERY=1` shortens the wait) | pilotty, before each merge |
 
-To add with E8 (more rooms):
+Added with E8 (more rooms):
 
 | Rule | Test |
 |---|---|

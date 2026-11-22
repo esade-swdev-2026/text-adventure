@@ -63,7 +63,7 @@ def shade_at(scene: dict[str, Any], row: int, column: int) -> int:
         value += shades["plank"] if math.floor(angle * 14) % 2 else 0
     if kind == "back_wall" and (column + (row % 2) * 4) % 8 == 0:
         value -= shades["seam"]
-    return max(0, min(MAX_LEVEL, value + noise(row, column)))
+    return int(max(0, min(MAX_LEVEL, value + noise(row, column))))
 
 
 def lamp_at(lamp: dict[str, Any], row: int, column: int) -> float:
@@ -73,7 +73,7 @@ def lamp_at(lamp: dict[str, Any], row: int, column: int) -> float:
     falloff = 1 / (1 + (math.hypot(across, down) / lamp["reach"]) ** 2)
     angle = math.atan2(abs(across), down) if down > 0 else math.pi
     cone = 1 - smoothstep(lamp["cone"] - 0.25, lamp["cone"] + 0.25, angle)
-    return min(1.0, falloff * (lamp["glow"] + (1 - lamp["glow"]) * cone) * lamp["power"])
+    return float(min(1.0, falloff * (lamp["glow"] + (1 - lamp["glow"]) * cone) * lamp["power"]))
 
 
 def lamps_at(lamps: list[dict[str, Any]], row: int, column: int) -> float:
@@ -88,7 +88,8 @@ def lamps_at(lamps: list[dict[str, Any]], row: int, column: int) -> float:
 
 def scene_lamps(scene: dict[str, Any]) -> list[dict[str, Any]]:
     """The lamps that are always on: `[lamp]` and every `[[lamps]]`."""
-    return ([scene["lamp"]] if "lamp" in scene else []) + scene.get("lamps", [])
+    lamps: list[dict[str, Any]] = scene.get("lamps", [])
+    return ([scene["lamp"]] if "lamp" in scene else []) + lamps
 
 
 def light_level(strength: float, ambient: int) -> int:

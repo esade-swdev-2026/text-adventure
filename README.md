@@ -2,7 +2,7 @@
 
 A text adventure for the terminal, played by typing commands such as `open toolbox` or
 `take key`: you are locked in, and must open containers, collect items in a 4-slot inventory
-and unlock the door to escape. Every command redraws the room, so you can see what changed. It
+and unlock each door to escape. Every command redraws the room, so you can see what changed. It
 is a group project for Software Development for Business at ESADE, built for anyone who wants a
 short puzzle game, and for the team to practise clean, tested Python.
 
@@ -14,17 +14,30 @@ the code is organised, how a turn flows through it, and every design decision ar
 
 ```
 ╭────────────────────────────────────── ELECTRICAL ROOM ───────────────────────────── 0 moves ─╮
-│     ╲                       │                                                          ╱     │
-│      ╲┌─────────────────────┴────────────────────────────────────────────────────────┐╱      │
-│       │━━━━┓              ▗▟█▙▖               ┌──────────┐              ┌─────────┐  │       │
-│       │    ┃              ░░▒░░               │ ▫  ϟ   ▫ │              │░░░ · ░░░│  │       │
-│       │    ┣━╸          ░░▒▒▒▒▒░░             │  ━━━━━━  │              │░░     ░░│  │       │
-│       │    ┃          ░░ ░  ░  ░ ░░           └──────────┘  ▪═══════▪   │░    ▪━━━┿━ │       │
-│       │    ┃        ░░ ░  ░  ░  ░  ░░                       ║╪╪╪╪╪╪╪║   │░       ░│  │       │
-│       └────┸────────────────────────────────────────────────▪═══════▪───┴─────────┴──┘       │
-│      ╱        ╔═════════╗░  ░  ░  ░  ░░             ·                     ░░░ ░░░     ╲      │
-│     ╱         ║ ▪ ═══ ▪ ║░  ░  ░  ░  ░ ░░                   ·            ░░░░  ░░░░    ╲     │
-│    ╱          ╚═════════╝ ░  ░  ░ ●▬  ░  ░░    ·                        ░░░░░   ░░░░░   ╲    │
+│            ╲                   │                                                ╱            │
+│             ╲                  │                ╺━━━━━━━━━━━━━╸                ╱             │
+│              ╲                 │                                              ╱              │
+│               ┌────────────────┴─────────────────────────────────────────────┐               │
+│               │             ▒▗▟█▙▖▒                                          │               │
+│               │             ▟█████▙   ┌────────────┐           ┌───────────┐ │               │
+│               │             ▒▓▒●░▒▒   │ ▫        ▫ │         ▪ │░▒░░░▒░░░▒░│ │               │
+│               │              ▓▓▓▓▓░   │     ϟ      │           │▒░▒░·░▒░▒░▒│ │               │
+│               │          ░░▓▓▒▒▓▒▒▒▒▒░│  ━━━━━━━━  │           │░░░░░░░░░░░│ │               │
+│               │        ░▒▒▓▓▒▒▓▒▓▒▓▓▒▓│░▫        ▫ │           │▒░▒░▒░▒░▒░▒│ │               │
+│               │     ░▒░▒░▓▓▒▓▓▒▒▒▒▒▓▓▓└────────────┘           │░▒░░░▒▪━━━━┿━│               │
+│               │  ░▒▒▒▒▓▓▓▓▓▒▓▒▓▒▓▓▓▒▒▒▓▓▓▓▓▒  ░   ▪═════════▪  │▒░▒░▒░▒░◦░▒│ │               │
+│               │░░▒▒▓▒▓▒▒▒▒▒▓▒▓▒▓▒▓▒▓▒▒▓▓░▓▓▓▒▒░░  ║╪╪╪╪╪╪╪╪╪║  │░░░░░░░░░░░│ │               │
+│               │░▒▒▓▓▒▒▓▓▓▓█▓▓▓█▓▓▓█▓▒▒█▒▓▓█▒░▒▒░░░║╪╪╪╪╪╪╪╪╪║  │▒░▒░▒░▒░▒░▒│ │               │
+│             ░ └───────────────────────────────────▪═════════▪──┴───────────┴─┘               │
+│              ╱▒▒▒▓▓▓█▓▓▓▓▓▓▓▓▒▓▓▓▓▓▓▓▓▓▓█▓▓▒█▒▓▒▒░▒░▒                         ╲              │
+│         ░ ░ ╱▒▒▒▒▓▒▓▒▓▓▓▒▓▒▓▓▓▓▓▒▓▓▓▓█▓█▒▒▓▓▒▓▓▒▒▒▒▒░░░                        ╲             │
+│         ░  ╱▒▒▓▒▓▒▒▒▓▓┌─────┐▒▓▓▓▒▓▓█▓█▓▓▓▓▓▓▒▓▒▓▒▒▒▒░▒░  ▒                     ╲            │
+│        ░░ ╱▒▒▒▒▒▒╔════╧═════╧════╗▒▓▒▓▓▒▒▓▒▓▒▓▒▓▒▓░▒░▒░▒░ ░░                     ╲           │
+│      ░░░▒╱▒▒▒▒▒▒▓║▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒║█▓▓▒▒▒▗▆▖▒▓▒▓▒▓▒▒▒▒░▒░▒░░                       ╲          │
+│        ░╱▒▒▒▒▒░▒░║░▪░▒░▒═══▒░▒░▪░║▒▓▒▒▒▓▒╨░▒░▒░▓░▒░▒░▒▒▒░░░  ░░                    ╲         │
+│     ░ ░╱▒▒▒▒▒▒▒░▒╚═══════════════╝▓▒▓▒▒▒▒▒▒▒▒░▒▒▒░▒░▒▒▒░░░▒░░  ░                    ╲        │
+│      ░╱▒░▒░▒░▒░▒▒▒▒▒░▒░▒▒▒░▒░▒░▒░▒▒▒░▒░▒▒▒▒▒░░░▒░▒▒▒░░▒░░░░░ ░░                      ╲       │
+│      ╱▒░▒░▒▒▒▒▒▒▒▒▒░▒▒▒▒▒░▒▒▓▒▒░▓▒▒░▒▒▒░▒▒▒▒▒░▒▒▒▒▒▒▒░░░▒░▒░▒ ░  ░                    ╲      │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────╯
   A lone lamp swings overhead. Beyond its light, the walls hum. A toolbox waits on the floor.
   A fuse box is screwed shut. A vent sits low in the dark. A flashbulb lies in the light. The
@@ -35,6 +48,7 @@ the code is organised, how a turn flows through it, and every design decision ar
 │ Open          Take    get    │  │            │  │            │  │            │  │            │
 │ Drop          Use            │  │            │  │            │  │            │  │            │
 │ Help    ?     Quit    q      │  │            │  │            │  │            │  │            │
+│                              │  │            │  │            │  │            │  │            │
 ╰──────────────────────────────╯  ╰────────────╯  ╰────────────╯  ╰────────────╯  ╰────────────╯
 
 
@@ -75,8 +89,8 @@ uv run text-adventure check src/text_adventure/world.json
 
 `check` loads a world file, checks every rule (including every `use` and what it refers to),
 searches for the shortest way to win and prints a summary, then a warning for each item
-without an inventory icon and each object without a close-up (the art is still being drawn,
-so these don't fail the check). A world that can't be won, or whose `par` is below the
+without an inventory icon and each object without a close-up (only some objects have a
+close-up, so these don't fail the check). A world that can't be won, or whose `par` is below the
 shortest win, fails with exit code 1:
 
 ```
@@ -97,11 +111,11 @@ exit code 1
 
 ## Run with Docker
 
-Requires [Docker](https://docs.docker.com/get-docker/). From the cloned repository, build
-the image once:
+Requires [Docker](https://docs.docker.com/get-docker/). Every release publishes the image to
+GitHub Container Registry, so there is nothing to build. Pull it:
 
 ```
-docker build -t text-adventure .
+docker pull ghcr.io/esade-swdev-2026/text-adventure:latest
 ```
 
 The world (the story, the rooms and their art) lives **outside the image**. Download it from
@@ -116,21 +130,25 @@ unzip world.zip -d my-world
 container read-only (`:ro`) and play it. The game is interactive, so `play` needs `-it`:
 
 ```
-docker run --rm -it -v "$PWD/my-world":/world:ro text-adventure play --world /world/world.json
+docker run --rm -it -v "$PWD/my-world":/world:ro ghcr.io/esade-swdev-2026/text-adventure:latest play --world /world/world.json
 ```
 
 To check the mounted world loads and can be won without playing it (no `-it` needed):
 
 ```
-docker run --rm -v "$PWD/my-world":/world:ro text-adventure check /world/world.json
+docker run --rm -v "$PWD/my-world":/world:ro ghcr.io/esade-swdev-2026/text-adventure:latest check /world/world.json
 ```
 
 **The world changes without a rebuild.** Open `my-world/world.json`, change the room's
 `"description"`, save, and run the same `docker run ... play` command again: the game shows
-your new text. The image is the same one you built above. Only the mounted folder changed.
+your new text. The image is the same one you pulled above. Only the mounted folder changed.
 
 Any folder works the same way, as long as it holds the world file and every art file the
 world names, at the relative paths it gives them.
+
+To build the image yourself instead, run `docker build -t text-adventure .` in the cloned
+repository and use `text-adventure` in place of `ghcr.io/esade-swdev-2026/text-adventure:latest`
+in the commands above.
 
 ## How to play
 
@@ -169,7 +187,7 @@ terminal. If you resize the window, the screen is
 redrawn at once; below 100 × 44 it asks for a bigger window. What you had typed is kept with GNU readline (most Linux builds) and lost with
 libedit (the macOS default).
 
-## The role of AI in this project
+## Use of AI
 
 We used an AI coding assistant, and want to be clear about where.
 
@@ -199,7 +217,7 @@ the same four checks and pull-request review as the rest of the code.
 ```
 uv run ruff check .           # lint
 uv run ruff format .          # format (CI runs `--check` and fails on a diff)
-uv run mypy src tests scripts # types
+uv run mypy src tests scripts # types (strict)
 uv run pytest                 # tests
 ```
 
@@ -207,10 +225,12 @@ These four commands are exactly what `.github/workflows/check.yml` runs on every
 If they pass here, CI passes. A second CI job builds the Docker image and runs `check` on a
 world mounted from outside it.
 
-To release, push a version tag (`git tag v0.7 && git push origin v0.7`).
+To release, push a version tag (`git tag -a v1.0 -m "Final submission" && git push origin v1.0`).
 `.github/workflows/release.yml` packs `world.json` and `art/` into `world.zip`, checks the
-image can load it from a bind mount, and publishes a GitHub release with the zip attached.
-That is the file the "Run with Docker" section downloads.
+image can load it from a bind mount, then pushes the image to
+`ghcr.io/esade-swdev-2026/text-adventure` (tagged with the version and `latest`) and publishes
+a GitHub release with the zip attached. Those are the image and the file the "Run with
+Docker" section uses.
 
 ## Layout
 
@@ -221,15 +241,20 @@ src/text_adventure/   the package; pure modules never print or read files
   game.py             the rules: apply a Command, return an Outcome
   world.py            check world.json data and build the rooms
   solve.py            find the shortest win, for check
-  art.py              parse the art file, draw sprites for the room's state
-  screen.py           build the screen as plain text (description, commands, layout)
-  terminal.py         I/O: draw the screen with rich, read a line
+  art.py              parse the art files, draw the room for its state, tone and flicker
+  screen.py           build the screen as plain text (picture, description, panels, history)
+  terminal.py         I/O: draw the screen with rich, read a line, run the lamp's flicker
   cli.py              I/O: the play and check commands, file reading, game loop
-  world.json          the room, its items and texts (the story)
-  art/                the room drawings; icons/ and closeups/ hold the object pictures
+  world.json          the three rooms, their items and texts (the story)
+  art/                one drawing per room; icons/ and closeups/ hold the object pictures
   __main__.py         lets `python -m text_adventure` work
-tests/                pytest tests, mirroring src/
-docs/SCREEN-SPEC.md   the screen design (next version): size, layout, palette, every state
+tests/                pytest tests, one file per module and per script
+scripts/              development tools, not shipped: bake_light.py and bake_closeup.py draft
+                      the shading of the art files from the scene files in scripts/scenes/
+docs/SCREEN-SPEC.md   the screen design: size, layout, palette, art format, every state
+docs/BACKLOG.md       the features by epic, built and not built
+.github/workflows/    check.yml (the four checks and the image, on every push) and
+                      release.yml (on a tag: world.zip, the image on ghcr.io, the release)
 pyproject.toml        dependencies and tool configuration — the single source of truth
 Dockerfile            the image: the package installed from uv.lock (.dockerignore: what stays out)
 ARCHITECTURE.md       full design: classes, game loop, world file, decisions

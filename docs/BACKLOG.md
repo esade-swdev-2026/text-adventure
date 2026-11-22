@@ -1,7 +1,21 @@
 # Product backlog
 
-Planned features after version 0.5 (one room, playable from start to win). E8 brings the
-three rooms of version 1.0.
+The features planned after version 0.5 (one room, playable from start to win), by epic. E8
+brought the three rooms of version 1.0.
+
+**Status at v1.0**
+
+| Epic | Status |
+|---|---|
+| E0 · Enablers | Built |
+| E1 · Interaction and puzzles | Built |
+| E2 · Main screen layout | Built, except E2.9 (clickable verbs, a stretch goal) |
+| E3 · Inspect view | E3.1 built. E3.2 and E3.3 in part: three close-ups (screwdriver, photograph, matchbook); `check` warns about the rest |
+| E4 · Colour | E4.1 built; E4.2 replaced by E7; E4.3 (colour-off switch) not built |
+| E5 · Lighting and key moments | Built |
+| E6 · Intro and ending | Not built: the intro is shown in the history, the win screen shows the ending text |
+| E7 · Tonal art | Built |
+| E8 · More rooms | Built |
 
 **Size:** S = under an hour · M = a few hours · L = a day or more (usually because of art).
 **Priority:** Must · Should · Could.
@@ -41,7 +55,7 @@ next. The player has to look at the room and choose a verb and a thing.
 | E2.1 | **Remove the "Try" line** | No more ready-made commands such as `open toolbox · take screwdriver`. The room drawing and description are the only source of what can be interacted with. | S | Must | E2.2 |
 | E2.2 | **Verb panel** | A fixed grid under the room listing the verbs on their own: Look, Inspect, Open, Take, Drop, Use, plus Help and Quit. It never names objects, so it can't give puzzles away. Typing stays the main way to play, and Tab completion keeps working. | M | Must | E0.1 |
 | E2.3 | **Inventory as icons** | The inventory moves from a sentence in the border to a grid of 4 slots next to the verb panel. Each slot shows the item's little picture with its name underneath, and empty slots are drawn as empty frames. | M | Must | E0.2, E2.4 |
-| E2.4 | **An icon for every item** | Each item in `world.json` gets a small drawing (about 6×3 characters) used in the inventory. | M | Must | E0.2 |
+| E2.4 | **An icon for every item** | Each item in `world.json` gets a small drawing used in the inventory (10 × 4 cells since E7). | M | Must | E0.2 |
 | E2.5 | **Visible objects in the room** | Every object you can interact with is clearly drawn in the room art and changes when its state changes (toolbox open/closed, fuse box open, door locked/unlocked/open), so the room shows what is possible without a list. | M | Must | — |
 | E2.6 | **Short message history** | Show the last 2–3 results under the room: the newest one bold, older ones dim. | S | Should | E0.1 |
 | E2.7 | **Move counter in the frame** | The move count sits in a corner of the room border, like a stopwatch (`11 moves`). | S | Should | E1.5 |
@@ -121,7 +135,6 @@ Night Office → the street. Each room needs one tool from the room before (SCRE
 
 ## Open questions
 
-- **Terminal size:** the room, verb panel and icon grid have to fit together. Decide in E0.1 whether the
-  minimum stays 80×24 or grows.
-- **Discoverability:** without the "Try" line, players who get stuck have no help. Consider a `hint`
-  command later if playtests show this.
+- **Terminal size:** settled in E0.1 and E7.1: at least 100 × 44 (SCREEN-SPEC §2).
+- **Discoverability:** without the "Try" line, players who get stuck have no help. A `hint`
+  command is the first stretch goal (ARCHITECTURE §13) if playtests show it is needed.
