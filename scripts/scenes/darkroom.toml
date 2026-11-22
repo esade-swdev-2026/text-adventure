@@ -1,0 +1,71 @@
+# Scene for scripts/bake_light.py: the darkroom (src/text_adventure/art/darkroom.txt).
+# Rows and columns count from 0 inside the 92 × 24 picture. The room is drawn in red
+# ("light": "red" in world.json), so the light levels here come out as the safelight's red.
+
+width = 92
+height = 24
+
+# The back wall's frame, as drawn in [background]: the same box as the electrical room.
+[wall]
+top = 3
+bottom = 14
+left = 14
+right = 77
+
+# A darkroom is painted dark, so the surfaces give back less than the electrical room's.
+[shade]
+ceiling = 2
+back_wall = 4
+side_walls = 3
+floor = 5
+plank = -1
+seam = 1
+
+# The safelight on the wall over the bench: a wide, weak spill, red in the game.
+[[lamps]]
+row = 7
+column = 19
+reach = 22.0
+cone = 1.3
+glow = 0.25
+power = 0.8
+
+# The safelight itself is the brightest thing in the room.
+[[marks]]
+rows = [6, 8]
+columns = [17, 21]
+letter = 9
+
+# The enlarger is on: a white square on the easel under its head, and a little spill.
+[[light_state]]
+state = "focused"
+
+[[light_state.lamps]]
+row = 7
+column = 26
+reach = 7.0
+cone = 0.5
+glow = 0.1
+power = 1.0
+
+[[light_state.marks]]
+rows = [7, 10]
+columns = [24, 28]
+letter = "f"
+
+# Printed: the enlarger is still on, the same light.
+[[light_state]]
+state = "printed"
+
+[[light_state.lamps]]
+row = 7
+column = 26
+reach = 7.0
+cone = 0.5
+glow = 0.1
+power = 1.0
+
+[[light_state.marks]]
+rows = [7, 10]
+columns = [24, 28]
+letter = "f"

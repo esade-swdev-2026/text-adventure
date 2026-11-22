@@ -15,11 +15,12 @@ runner = CliRunner()
 
 
 def test_scripted_playthrough_wins_and_exits_0(win_script: list[str]) -> None:
+    moves = len(win_script)
     lines = ["dance", "x the key", *win_script]
     result = runner.invoke(app, ["play"], input="\n".join(lines) + "\n")
     assert result.exit_code == 0
     assert 'I don\'t know how to "dance"' in result.output
-    assert "Escaped in 12 moves. Par is 12. Sharp." in result.output
+    assert f"Escaped in {moves} moves. Par is {moves}. Sharp." in result.output
     assert "Thanks for playing." in result.output
 
 
@@ -60,8 +61,8 @@ def test_invalid_json_exits_1(tmp_path: Path) -> None:
 def test_check_prints_a_summary() -> None:
     result = runner.invoke(app, ["check", "src/text_adventure/world.json"])
     assert result.exit_code == 0
-    assert "1 room(s), 3 containers and 5 items" in result.output
-    assert "The shortest win takes 12 moves. Par is 12." in result.output
+    assert "2 room(s), 7 containers and 11 items" in result.output
+    assert "The shortest win takes 24 moves. Par is 24." in result.output
 
 
 def test_check_warns_about_missing_pictures_but_exits_0() -> None:
@@ -156,4 +157,4 @@ def test_the_world_runs_from_a_folder_outside_the_package(tmp_path: Path) -> Non
     shutil.copytree(package / "art", tmp_path / "art")
     result = runner.invoke(app, ["check", str(tmp_path / "world.json")])
     assert result.exit_code == 0, result.output
-    assert "1 room(s), 3 containers and 5 items" in result.output
+    assert "2 room(s), 7 containers and 11 items" in result.output

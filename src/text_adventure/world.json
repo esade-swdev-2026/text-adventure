@@ -1,7 +1,7 @@
 {
   "intro": "The power died an hour ago. Somebody wanted you in the dark. Find a way out.",
   "ending": "Cold air rushes in. Beyond the door the city glitters under a wet night sky, and for the first time tonight you can see where you're going.",
-  "par": 12,
+  "par": 24,
   "rooms": [
     {
       "id": "electrical",
@@ -164,7 +164,7 @@
       ],
       "door": {
         "required_item": "key",
-        "next_room": null,
+        "next_room": "darkroom",
         "needs": {
           "fuse box": "power on"
         },
@@ -173,12 +173,220 @@
         "room_text": {
           "locked": "The steel door is locked.",
           "unlocked": "The door is unlocked, a green light over its keyhole.",
-          "open": "The door stands open on the night."
+          "open": "The door stands open on a dark corridor."
         },
         "inspect": {
           "locked": "Steel. A brass keyhole under the handle, and above it an electric bolt with a dead light. Without power, no key will move it.",
           "unlocked": "The bolt is drawn back and a green light glows over the keyhole. Nothing holds the door now.",
-          "open": "The door stands open on a wet, glittering night."
+          "open": "The door stands open. Beyond it a corridor runs off into the dark, smelling of vinegar."
+        },
+        "sprite": [
+          5,
+          63
+        ],
+        "carry": [
+          "wrench"
+        ]
+      }
+    },
+    {
+      "id": "darkroom",
+      "name": "Darkroom",
+      "description": "The air stinks of vinegar.",
+      "art": "art/darkroom.txt",
+      "light": "red",
+      "flicker": false,
+      "items": [
+        {
+          "name": "negatives",
+          "description": "a strip of wet negatives",
+          "floor_text": "Negatives hang on a line.",
+          "inspect": "Six frames, too small and too dark to read by this light. Somebody shot a whole roll tonight. They want the enlarger.",
+          "refusal": "Negatives are no use like that. They want the enlarger.",
+          "sprite": [
+            6,
+            41
+          ],
+          "icon": "art/icons/negatives.txt"
+        },
+        {
+          "name": "safelight",
+          "portable": false,
+          "floor_text": "A safelight burns red.",
+          "inspect": {
+            "": "A red safelight in a steel housing, too hot to touch. Its cable runs up behind the box and out of sight.",
+            "searched": "The housing ticks as it cools. The hook behind it is empty now."
+          },
+          "uses": [
+            {
+              "item": "tongs",
+              "needs": {
+                "enlarger": "printed",
+                "tray": "open"
+              },
+              "refusal": "Poke around behind a hot lamp? Not without a reason.",
+              "text": "You reach behind the housing with the tongs. Something on a hook gives, and a small key drops to the floor.",
+              "state": "searched",
+              "reveal": [
+                "padlock key"
+              ]
+            }
+          ],
+          "sprite": [
+            6,
+            17
+          ]
+        },
+        {
+          "name": "padlock key",
+          "description": "small and steel",
+          "hidden": true,
+          "floor_text": "A small key lies on the floor.",
+          "inspect": "Small and steel, still warm from the lamp. It fits a padlock, and there's only one padlock in here.",
+          "sprite": [
+            16,
+            28
+          ],
+          "icon": "art/icons/padlock_key.txt"
+        }
+      ],
+      "containers": [
+        {
+          "name": "camera bag",
+          "closed_text": "A camera bag lies on the floor.",
+          "open_text": "The camera bag is open.",
+          "inspect": "A press photographer's bag, the strap mended with wire. The same make as that flashbulb.",
+          "sprite": [
+            17,
+            18
+          ],
+          "contents": [
+            {
+              "name": "lens",
+              "description": "an enlarging lens",
+              "inspect": "An enlarging lens, cap still on. Without it the enlarger can only throw a blur.",
+              "sprite": [
+                19,
+                20
+              ],
+              "floor": [
+                20,
+                30
+              ],
+              "icon": "art/icons/lens.txt"
+            }
+          ]
+        },
+        {
+          "name": "enlarger",
+          "room_text": {
+            "closed": "An enlarger stands dark.",
+            "open": "The enlarger hangs open.",
+            "focused": "The enlarger throws a white square.",
+            "printed": "The enlarger's lamp is on."
+          },
+          "inspect": {
+            "closed": "An enlarger on a steel column, its lamp good, its lens mount empty.",
+            "focused": "A sharp white square on the easel. All it needs now is something to print.",
+            "printed": "The lamp is still on. Whatever was on that roll is in the tray now."
+          },
+          "uses": [
+            {
+              "item": "lens",
+              "text": "You screw the lens home. A sharp white square lands on the easel.",
+              "state": "focused",
+              "consume": true
+            },
+            {
+              "item": "negatives",
+              "needs": {
+                "enlarger": "focused"
+              },
+              "refusal": "Without a lens the enlarger would only print a blur.",
+              "text": "You expose a sheet and slide it into the developer. Under the red light, a picture swims up.",
+              "state": "printed",
+              "consume": true,
+              "reveal": [
+                "photograph"
+              ]
+            }
+          ],
+          "sprite": [
+            4,
+            23
+          ]
+        },
+        {
+          "name": "tray",
+          "closed_text": "A tray sits under its lid.",
+          "open_text": "The tray is open.",
+          "inspect": {
+            "closed": "A shallow tray of developer under a black lid.",
+            "open": "Developer, black and still, smelling of vinegar."
+          },
+          "sprite": [
+            8,
+            33
+          ],
+          "contents": [
+            {
+              "name": "photograph",
+              "portable": false,
+              "hidden": true,
+              "description": "a wet print",
+              "inspect": "The safelight on this wall, and a gloved hand reaching in behind it. On the white border, in pencil: \"behind the light. don't keep me waiting. V.\"",
+              "closeup": "art/closeups/photograph.txt",
+              "sprite": [
+                9,
+                35
+              ]
+            }
+          ]
+        },
+        {
+          "name": "cabinet",
+          "required_item": "wrench",
+          "closed_text": "A cabinet is bolted shut.",
+          "open_text": "The cabinet is open.",
+          "inspect": {
+            "closed": "Grey steel, the doors held by a hasp and one big rusted bolt. The kind of bolt your wrench was made for.",
+            "open": "Shelves of chemicals in brown bottles. Somebody kept this place tidy."
+          },
+          "sprite": [
+            5,
+            51
+          ],
+          "contents": [
+            {
+              "name": "tongs",
+              "description": "bamboo darkroom tongs",
+              "inspect": "Bamboo tongs, the tips stained brown. Long enough to reach where fingers shouldn't go.",
+              "sprite": [
+                7,
+                53
+              ],
+              "floor": [
+                19,
+                48
+              ],
+              "icon": "art/icons/tongs.txt"
+            }
+          ]
+        }
+      ],
+      "door": {
+        "required_item": "padlock key",
+        "next_room": null,
+        "unlock_text": "The padlock springs open and drops off the bolt.",
+        "room_text": {
+          "locked": "The door is padlocked.",
+          "unlocked": "The padlock hangs open.",
+          "open": "The door stands open."
+        },
+        "inspect": {
+          "locked": "A light-tight door, a bolt across it and a padlock through the bolt. Fresh oil on the shackle.",
+          "unlocked": "The padlock hangs open. Nothing holds the bolt now.",
+          "open": "The door stands open on a flight of stairs going up."
         },
         "sprite": [
           5,

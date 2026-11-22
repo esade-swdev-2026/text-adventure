@@ -115,7 +115,8 @@ def test_par_must_be_a_positive_whole_number(par: Any) -> None:
 def test_default_world_loads_from_package_data(world: World) -> None:
     room = world.first_room
     assert room.name == "Electrical Room"
-    assert room.door.is_exit()
+    assert not room.door.is_exit()
+    assert world.rooms()[-1].door.is_exit()
     assert world.intro and world.ending
 
 
@@ -234,7 +235,8 @@ def test_rooms_must_be_a_non_empty_list() -> None:
 
 def test_summarize_counts_rooms_containers_and_items(world: World) -> None:
     summary = summarize(world)
-    assert (summary.rooms, summary.containers, summary.items) == (1, 3, 5)  # the fuse is hidden
+    # Hidden items count too: the fuse, the photograph and the padlock key.
+    assert (summary.rooms, summary.containers, summary.items) == (2, 7, 11)
     assert summary.first_room == "Electrical Room"
 
 

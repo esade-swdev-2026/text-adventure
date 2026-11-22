@@ -603,8 +603,8 @@ def build_win_screen(
 # One ASCII character per cell for terminals that can't show UTF-8, so widths don't change.
 ASCII_FALLBACK = str.maketrans(
     {
-        **dict.fromkeys("╭╮╰╯┌┐└┘┬┴├┤╔╗╚╝╧╤┓┣┸┑╡┳┿╪", "+"),
-        **dict.fromkeys("─▔━▀╸╺╾▬╌", "-"),
+        **dict.fromkeys("╭╮╰╯┌┐└┘┬┴├┤╔╗╚╝╧╤┓┣┸┨┑╡┳┿╪", "+"),
+        **dict.fromkeys("─▔━▀╸╺╾╼╶╴▬╌", "-"),
         **dict.fromkeys("═", "="),
         **dict.fromkeys("│║▌▐┃╻╹", "|"),
         **dict.fromkeys("▓▮█▟▙▜▛▆▄", "#"),
@@ -615,6 +615,8 @@ ASCII_FALLBACK = str.maketrans(
         "╲": "\\",
         "╱": "/",
         "▁": "_",
+        "▼": "v",
+        "╷": "|",
         "░": ":",
         "ϟ": "*",
         "●": "@",
