@@ -3,13 +3,18 @@
 # course — CI is the referee — but it catches things earlier.
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.6.9
+    rev: v0.16.6
     hooks:
-      - id: ruff
+      - id: ruff-check
         args: [--fix]
       - id: ruff-format
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.11.2
+  # mypy runs from the project's own environment, exactly as CI does (strict, from
+  # pyproject.toml), so it sees the package, rich, typer and pytest.
+  - repo: local
     hooks:
       - id: mypy
-        additional_dependencies: [typer]
+        name: mypy
+        entry: uv run mypy src tests scripts
+        language: system
+        pass_filenames: false
+        types: [python]

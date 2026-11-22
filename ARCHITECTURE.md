@@ -4,10 +4,9 @@ This document is the design for the text adventure. It started as the team's des
 ("Blackout at the Observatory") and goes further: it describes how the code
 is organised, how one turn flows through it, and every rule the game follows.
 
-**Every design decision is made. Only the story is still open.** The engine does not depend
-on the story. Names, descriptions and the opening and ending text all live in `world.json`, so
-picking a story means writing data, not code. Object names in this document (desk, chest,
-key, screwdriver…) are placeholders.
+**Every design decision is made, and the story is written** (section 9). The engine does not
+depend on the story: names, descriptions and the opening and ending text all live in
+`world.json`, so changing the story means writing data, not code.
 
 ---
 
@@ -38,13 +37,13 @@ The three requirements from the assignment map onto this directly:
 
 ## 2. Decisions
 
-The brief left three questions open. They are now settled:
+The brief left three questions open. All three are settled:
 
 | Question                           | Decision                                                      | Status        |
 |------------------------------------|---------------------------------------------------------------|---------------|
 | Are all doors locked, or only the last? | **All three doors are locked.** Each needs one item.     | Decided       |
 | Numbered choices or typed commands? | **Typed commands** (`verb` + optional object name). No numbered menu. | Decided, built in v0.5 |
-| Story and theme                    | **Not chosen.** It will be written into `world.json` and needs no code changes. | Open, on purpose |
+| Story and theme                    | **Noir.** Someone who signs as "V." has locked you in after a blackout; three rooms lead to the street (section 9). It lives in `world.json` and needed no code changes. | Decided, built in v1.0 |
 
 These rules are also fixed. Each was implied by the brief or the existing code and is now
 stated outright:
@@ -133,28 +132,25 @@ room knowing what's in it.
 
 ### Example
 
+Every command redraws the screen (section 7). The result appears in the history under the
+room, newest at the bottom; this is what it says, from the start of the game:
+
 ```
-You are in Room 1.
-A small, dusty room.
-There is a desk (closed).
-There is a chest (closed).
-On the floor: coin.
-There is a door.
-
-[Room 1] > open desk
-You open the desk. Inside: key.
-[Room 1] > take the key
-You take the key.
-[Room 1] > open door
-The door opens.
-
-You are in Room 2.
-...
-[Room 2] > dance
-I don't know how to "dance". Type "help" for a list of commands.
-[Room 2] > take
+[Electrical Room] > open toolbox
+You open the toolbox. Inside: screwdriver, wrench.
+[Electrical Room] > take the wrench
+You take the wrench.
+[Electrical Room] > open vent
+You open the vent with the wrench. You can't make anything out.
+[Electrical Room] > inspect vent
+The duct runs back into pitch black. The lamp can't reach in there. You'd need a flash to see.
+[Electrical Room] > open door
+The door is locked.
+[Electrical Room] > dance
+I don't know how to "dance". Type "help" for the verbs.
+[Electrical Room] > take
 Take what?
-[Room 2] > take lamp
+[Electrical Room] > take lamp
 There is no lamp here.
 ```
 
@@ -191,7 +187,7 @@ Every module is either **pure** (works on plain data, never prints, never reads 
 | `world.py` | pure | `build_world(data, art, pictures) -> World` checks the parsed JSON and raises `WorldError`. `World` holds `first_room`, `intro`, `ending`, `par`, each room's `Art` and each object's icon and close-up. `missing_pictures(world)` lists the art still to draw. |
 | `solve.py` | pure | `shortest_win(world)`: a breadth-first search over game states that returns the fewest commands that win, or `None`. `reachable(world)` returns every state the player can reach. Used by `check` and the tests. |
 | `art.py` | pure | `parse_art(text) -> Art` and `compose(art, room) -> list[str]`, which draws each object's sprite for its current state (`door_state`: locked, unlocked or open). `parse_picture(text, size) -> Picture` reads an icon or close-up. Widths are in terminal cells. The lamp's flicker is decided here, as pure code: `dimmed`, `flicker_wanted` and `FlickerSchedule`. |
-| `screen.py` | pure | `describe_room`, `thing_description`, `visible_names` and `complete` (Tab), and `build_screen` / `build_win_screen`, which return every row of the 96 × 29 block as text tagged with a role (border, shadow, lit, result, history…). |
+| `screen.py` | pure | `describe_room`, `thing_description`, `visible_names` and `complete` (Tab), and `build_screen` / `build_win_screen`, which return every row of the 96 × 43 block as text tagged with a role (border, shadow, lit, result, history…). |
 | `terminal.py` | I/O | `Terminal`: draws a screen with rich (one style per role, centred both ways, cleared between turns), shows the too-small screen, redraws on resize keeping typed text, reads a line, prints "Goodbye.", and runs the lamp's flicker thread. |
 | `cli.py` | I/O | Typer commands `play [--world PATH] [--no-motion]` and `check PATH` (which also proves the world can be won within its par). Reads `world.json`, the art files and the picture files, runs the loop, turns every load error into `Error: …` and exit code 1, and handles Ctrl-C / Ctrl-D. |
 | `world.json`, `art/*.txt` | data | The story and the drawings. |
@@ -294,7 +290,7 @@ are. Ctrl-C and Ctrl-D end the game the same way as `quit`.
 ### Ending the game
 
 - **Win:** the last room's door opens (`Door.is_exit()` is `True`). The message is
-  `win_message(moves, par)`, e.g. `Escaped in 12 moves. Par is 12. Sharp.` The win screen shows
+  `win_message(moves, par)`, e.g. `Escaped in 36 moves. Par is 36. Sharp.` The win screen shows
   the door open and the `ending` text, and the game exits with code 0.
 - **Quit:** `quit`, Ctrl-C or Ctrl-D. Exit code 0, no traceback.
 - There is no lose condition. Moves are counted against par but never end the game.
@@ -548,9 +544,10 @@ Plain UTF-8 text, split into sections by a `[name]` line:
 - `[light:<state>]` replaces `[light]` while any object in the room is in that state, e.g.
   `[light:power on]`. A sprite can have its own shade map, `[name:<state>:shade]`, for the
   blanks inside its outline (black without one).
-- The `[shade]`, `[light]` and `[light:power on]` maps are drafted by
-  `scripts/bake_light.py` from a scene file (`scripts/scenes/electrical_room.toml`: the wall's
-  frame, a shade per surface, the lamp, marks) and then edited by hand. The script is a
+- The `[shade]`, `[light]` and light-state maps are drafted by `scripts/bake_light.py` from
+  a scene file per room (`scripts/scenes/electrical_room.toml`, `darkroom.toml`,
+  `night_office.toml`: the wall's frame, a shade per surface, one or more lamps, marks) and
+  then edited by hand. The script is a
   development tool outside the package; the game only reads the art file.
 - A container or the door needs `[name:closed]` and `[name:open]`. An item needs `[name]`; it
   is drawn inside its open container, or on the floor.
@@ -593,10 +590,12 @@ ssssssssssss
   a development tool outside the package, as `bake_light.py` is.
 - `cli.load_world` reads every file `picture_paths(world_json)` lists, with the size it is used
   at, and `parse_picture` parses it. `build_world` checks every reference and stores the
-  pictures on the `World`. Nothing draws them yet; E2 and E3 do.
+  pictures on the `World`. `screen.py` draws the icons in the inventory slots and a close-up
+  in place of the room while inspecting.
 
-The packaged world has one example of each: `art/icons/screwdriver.txt` and
-`art/closeups/screwdriver.txt`.
+The packaged world has an icon for every portable item (`art/icons/`, 13 files) and three
+close-ups (`art/closeups/`: the screwdriver, the photograph and the matchbook). `check` warns
+about every other object without a close-up.
 
 ### The Electrical Room puzzle
 
@@ -636,15 +635,22 @@ The night watchman's office, neon through the blinds. 12 moves to the street:
 
 ---
 
-## 9. The story: the one thing left open
+## 9. The story
 
-The story can change without touching code because everything about it lives in `world.json`:
+Noir, at night. The power died an hour ago and you wake up locked in an electrical room.
+Someone who signs as "V." pulled the fuse and left you the key, and a photograph shows they
+watched you sleep. Each room gives a clue and a tool for the next: the Electrical Room, the
+Darkroom (red safelight) and the Night Office (neon through the blinds), then the street. The
+`intro` and `ending` texts open and close it.
+
+Everything about the story lives in `world.json`, so it can change without touching code:
 
 | Story element                  | Where it goes                          |
 |--------------------------------|----------------------------------------|
 | Setting and opening situation  | `intro`                                |
 | Room names and atmosphere      | `rooms[].name`, `rooms[].description`  |
 | Objects, keys and tools        | `items`, `containers`, `contents` names and descriptions |
+| Clues                          | `inspect` texts and the close-ups       |
 | Escape and resolution          | `ending`                               |
 
 Any story fits, as long as its `world.json`:
@@ -655,8 +661,9 @@ Any story fits, as long as its `world.json`:
 - uses short, lower-case names the player can guess and type, each used only once, and none
   called `door`.
 
-Choosing the story means: write the text, replace the placeholder names, and run
-`uv run pytest`. If the full-playthrough test passes, the new story is playable.
+Changing the story means: write the text and run `uv run text-adventure check` on the file,
+then `uv run pytest`. If `check` finds a win within par and the full-playthrough test
+passes, the new story is playable.
 
 ---
 
@@ -673,8 +680,8 @@ test pure functions. `conftest.py` loads a fresh copy of the packaged world for 
   and its short forms, and `use` with and without `on` / `in` / `with`.
 - **Art** (`test_art.py`): picture frames padded to size, bad pictures rejected, the default
   frame, the example pictures' sizes; sprite placement, state swaps, a taken item disappearing, clipping,
-  missing or malformed sections, transparency, and that every composed line is exactly 72 cells in
-  every state of the real room.
+  missing or malformed sections, transparency, and that every composed line is exactly 92 cells in
+  every state of the Electrical Room along the win route.
 - **World** (`test_world.py`): pictures are found by object, missing ones are listed (scenery needs
   no icon), the packaged world loads, each rule in section 8 rejects a
   small broken example, every clue and result fits its rows, and the room description fits
@@ -685,7 +692,7 @@ test pure functions. `conftest.py` loads a fresh copy of the packaged world for 
   story states, unknown names, empty input and quit.
 - **Solver** (`test_solve.py`): the packaged world is won in exactly its par, the search leaves
   the world untouched, an unwinnable world gives `None`, and a two-room route is found.
-- **Screen** (`test_screen.py`): every screen in a playthrough is exactly 96 × 29, in the room
+- **Screen** (`test_screen.py`): every screen in a playthrough is exactly 96 × 43, in the room
   and inspecting; the border with title and move counter; the verb panel never changes and
   names no object; slots, icons and empty frames; the history; Tab never offers hidden items;
   the inspect view; the spotlight; the win screen and the ASCII fallback.
@@ -697,30 +704,51 @@ test pure functions. `conftest.py` loads a fresh copy of the packaged world for 
   package, so the tests load each script from its file (the `load_script` fixture). They check
   the properties of a bake (sizes, allowed cells, the lamp at full light, the power-on light at
   least the ambient level, two bakes the same), never the committed maps, because the art
-  files are edited by hand after a bake. CI runs `mypy` on `scripts` too.
+  files are edited by hand after a bake. CI runs `mypy` on `scripts` too, in strict mode.
 
 The real terminal (layout at 100 × 44 and 140 × 50, Ctrl-C/Ctrl-D, a too-small window, resize)
 is checked by playing the real game in a terminal before each merge. Anything that can be
 checked in code, such as line widths or a missing command hint, becomes a pytest test.
 
-The four CI checks (`ruff check`, `ruff format --check`, `mypy` on `src tests scripts`, `pytest`)
-must pass before a pull request is merged.
+The four CI checks (`ruff check`, `ruff format --check`, `mypy --strict` on `src tests scripts`,
+`pytest`) must pass before a pull request is merged. The same `check` job then builds the
+Docker image and runs it with `--help`.
 
 ---
 
-## 11. Team split
+## 11. Delivery
 
-| Person   | Owns                                                                     |
-|----------|--------------------------------------------------------------------------|
-| A        | `models.py` (including the name lookups), `world.py` and the schema for `world.json` |
-| B        | `commands.py`: the grammar, aliases, error messages and input loop        |
-| C        | `game.py`, `cli.py`, the win check, and the story inside `world.json`     |
-| Everyone | Tests for their own module, and the README                               |
+- **CI** (`.github/workflows/check.yml`, every push and pull request): the four checks above,
+  then `docker build` and `docker run … --help`. A second job runs `check` on a world mounted
+  into the container from outside it.
+- **Image** (`Dockerfile`): dependencies are installed from `uv.lock` before the code is
+  copied, so a code change doesn't reinstall them; the game runs as a non-root user; the
+  entry point is `text-adventure`. `.dockerignore` keeps the virtual environment, `.git`, the
+  tool caches, tests and docs out.
+- **Release** (`.github/workflows/release.yml`, on a `v*` tag): packs `world.json` and `art/`
+  into `world.zip`, checks the image loads it from a read-only bind mount, pushes the image to
+  `ghcr.io/esade-swdev-2026/text-adventure` (the version and `latest`), runs the published
+  image, and publishes a GitHub release with `world.zip`. The README's "Run with Docker"
+  section uses exactly that image and that zip, so the world lives outside the image.
 
-### Stretch goals
+## 12. Team
 
-None of these are started until everything above works and CI is green. They are listed in
-order of preference. Each one fits the current design without restructuring it:
+Work reached `main` through pull requests, most of them reviewed by another member. Who built
+what, from those pull requests:
+
+| Member | Built |
+|---|---|
+| FJGJanssen | The models and the command parser; finishing the Docker setup; the tone engine (E7.2); the rooms engine: `carry`, per-room flicker and light (E8.2) |
+| Sam-App123 | Loading the world and the game rules; the Electrical Room redrawn with baked light (E7.3); the Night Office (E8.4) |
+| fkohlhaas123 | The package rename; the first screen and room art; `inspect`, `use` and the Electrical Room puzzle (E1); the 256-colour palette (E4); the shaded icons, close-up and lamp flicker (E7.4, E5.3) |
+| panchoalonso | The `play` and `check` commands, README and this document; the screen spec; the verb panel, inventory icons and history (E2); the flashbulb flash (E5.2); running in Docker; the tonal art spec (E7.1); the prompt fix; the Darkroom (E8.3); publishing to GHCR |
+| Everyone | Tests for their own code, and reviews of each other's pull requests |
+
+## 13. Stretch goals
+
+Not built. None of these were to start until everything above worked and CI was green.
+They are listed in order of preference. Each one fits the current design without
+restructuring it:
 
 1. A `hint` command (a `hint` field per room in `world.json`).
 2. A move limit as a lose condition (`Player.moves` is already counted).
