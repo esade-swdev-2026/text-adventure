@@ -189,28 +189,39 @@ libedit (the macOS default).
 
 ## Use of AI
 
-We used an AI coding assistant, and want to be clear about where.
+We used an AI coding assistant (Claude Code) throughout the project. Using AI is allowed for
+this course, and we want to be clear about where we used it.
 
-**What we did ourselves.** The game design, the rules and the core logic: the models
-(`Item`, `Container`, `Door`, `Room`, `Player`, `Inventory`), how a command changes the game
-state, the win condition, the world file format and the story. We decided the architecture
-(pure modules inside, a thin I/O layer outside), reviewed and tested every change, and are
-responsible for all of the code in this repository.
+**Ideas and content.** All the ideas and content in this project are ours. That includes the
+premise and setting (a blackout, someone who wants you in the dark, a noir night city), every
+room and its story, the puzzles, the texts, the intro and ending, and the architecture rule
+(pure modules inside, a thin I/O layer outside). Sometimes we used the assistant to
+brainstorm, but we made every decision about what went into the game. We decided what to
+build and in what order, playtested every room, reported what was wrong and asked for fixes.
+We are responsible for every line in this repository.
 
-**What AI helped with.** Some parts are code-heavy and tedious but add little to the logic.
-Done by hand, they would have taken weeks, and we wanted the game to look good. We used AI
-heavily for these:
+**Implementation.** The assistant helped write code from our requests: the terminal drawing
+and layout (`screen.py`, `terminal.py`), the art format and shading engine (`art.py`),
+validation (`world.py`), and the engine changes for the extra rooms (`models.py`, `game.py`,
+`solve.py`). It also helped with the light-baking scripts, tests, docstrings and
+documentation. We reviewed and tested all of it.
 
-- terminal drawing: the framed panel, fixed-height layout, text wrapping, styles and the
-  ASCII fallback (`screen.py`, `terminal.py`)
-- ASCII art: drafting the room and object sprites, which we then edited by hand, and the
-  code that composes them by state (`art.py`, `art/`)
-- parsing and validation: the art file parser and the many checks with clear error messages
-  when loading `world.json` (`art.py`, `world.py`)
-- boilerplate tests for those parts, and polishing docstrings and documentation
+**Pull requests and Git.** We used it to:
 
-Everything AI produced was read, run and changed by us before it was merged, and goes through
-the same four checks and pull-request review as the rest of the code.
+- plan how to split work into pull requests so we ran into as few merge conflicts as
+  possible, and to keep each PR to one change
+- draft PR titles and descriptions, and commit messages in the imperative
+- resolve merge conflicts when they happened, and rebase branches onto main
+
+**Reviews.** When reviewing each other's pull requests, we used it to point out bugs, edge
+cases and key comments. We read its suggestions, kept the ones we agreed with and posted them
+as our own review comments. It also ran a security review of one change.
+
+**Delivery and checks.** It helped set up the release workflow (`world.zip` and the image on
+GHCR), fix strict type-checking errors, and compare our repository against the course
+checkpoints and rubric.
+
+Everything went through the four CI checks and a pull request before it reached main.
 
 ## Develop
 
