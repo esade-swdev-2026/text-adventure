@@ -111,23 +111,52 @@ exit code 1
 
 ## Run with Docker
 
-Requires [Docker](https://docs.docker.com/get-docker/). Every release publishes the image to
-GitHub Container Registry, so there is nothing to build. Pull it:
+Docker runs the game the same way on macOS, Linux and Windows, in any shell (bash, zsh,
+PowerShell, cmd). It is also the tested way to play on Windows. Install
+[Docker Desktop](https://docs.docker.com/get-docker/) (or Docker Engine on Linux), start it,
+and run:
 
 ```
-docker pull ghcr.io/esade-swdev-2026/text-adventure:latest
+docker run --rm -it ghcr.io/esade-swdev-2026/text-adventure:latest play
 ```
 
-The world (the story, the rooms and their art) lives **outside the image**. Download it from
-the latest release and unzip it into a folder:
+That is all you need. Docker downloads the image the first time, and the game plays the world
+built into it. The command has no paths or shell variables, so you can paste it into any
+terminal. `-it` is required: it gives the game your keyboard and screen. Without it, `play`
+can't read your commands.
 
-```
-curl -L -o world.zip https://github.com/esade-swdev-2026/text-adventure/releases/latest/download/world.zip
-unzip world.zip -d my-world
-```
+**Your terminal.** The game needs a window of at least 100 × 44, a dark background, UTF-8 and
+256 colours. macOS Terminal, iTerm2, any Linux terminal and
+[Windows Terminal](https://aka.ms/terminal) all qualify. On Windows, use Windows Terminal
+rather than the old console window. If the window is too small, the game asks you to resize it.
 
-`my-world/` now holds `world.json` and the `art/` folder it names. Mount it into the
-container read-only (`:ro`) and play it. The game is interactive, so `play` needs `-it`:
+**Apple Silicon and other ARM machines.** The published image is built for `linux/amd64`
+(Intel/AMD). Docker Desktop on an M-series Mac, or Docker on ARM Linux, runs it through
+emulation. It works, and you won't notice the slowdown in a text game, but Docker may warn that
+the platform doesn't match. Add `--platform linux/amd64` to the `docker run` commands to
+silence the warning, or build a native image yourself (see below).
+
+### Play your own copy of the world
+
+The image also plays a world that lives **outside the image**, so you can edit it without
+rebuilding. Get `world.zip` from the
+[latest release](https://github.com/esade-swdev-2026/text-adventure/releases/latest)
+(download it in your browser, or with
+`curl -L -O https://github.com/esade-swdev-2026/text-adventure/releases/latest/download/world.zip`).
+Extract it with any tool into a folder called `my-world`, so that `my-world/` holds
+`world.json` and the `art/` folder it names.
+
+Then mount that folder into the container read-only (`:ro`) and play it. `-v` needs the
+folder's full path. Here is how each shell writes "my-world in the current folder":
+
+| Shell | Mount option |
+|---|---|
+| bash, zsh (macOS, Linux, WSL) | `-v "$PWD/my-world":/world:ro` |
+| PowerShell (Windows) | `-v "${PWD}/my-world:/world:ro"` |
+| cmd (Windows) | `-v "%cd%\my-world":/world:ro` |
+
+Any absolute path works too, for example `-v "C:\Users\you\my-world":/world:ro` or
+`-v "/Users/you/my-world":/world:ro`. In bash or zsh:
 
 ```
 docker run --rm -it -v "$PWD/my-world":/world:ro ghcr.io/esade-swdev-2026/text-adventure:latest play --world /world/world.json
@@ -139,16 +168,21 @@ To check the mounted world loads and can be won without playing it (no `-it` nee
 docker run --rm -v "$PWD/my-world":/world:ro ghcr.io/esade-swdev-2026/text-adventure:latest check /world/world.json
 ```
 
+The part after the image name (`play --world /world/world.json`, `check /world/world.json`)
+is the same in every shell, because it is a path inside the Linux container.
+
 **The world changes without a rebuild.** Open `my-world/world.json`, change the room's
 `"description"`, save, and run the same `docker run ... play` command again: the game shows
-your new text. The image is the same one you pulled above. Only the mounted folder changed.
+your new text. The image hasn't changed. Only the mounted folder changed.
 
 Any folder works the same way, as long as it holds the world file and every art file the
 world names, at the relative paths it gives them.
 
-To build the image yourself instead, run `docker build -t text-adventure .` in the cloned
-repository and use `text-adventure` in place of `ghcr.io/esade-swdev-2026/text-adventure:latest`
-in the commands above.
+### Build the image yourself
+
+Run `docker build -t text-adventure .` in the cloned repository, and use `text-adventure` in
+place of `ghcr.io/esade-swdev-2026/text-adventure:latest` in the commands above. The image is
+built for your own machine, so on Apple Silicon or ARM it runs natively with no emulation.
 
 ## How to play
 
