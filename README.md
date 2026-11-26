@@ -111,11 +111,34 @@ exit code 1
 
 ## Run with Docker
 
+> **Apple Silicon Mac (M1/M2/M3/M4)?** The image is built for Intel/AMD (`linux/amd64`), so every
+> `docker pull` and `docker run` below carries `--platform linux/amd64`. Docker runs it through
+> emulation, and a "platform does not match" warning is normal. On an Intel/AMD machine the flag
+> is harmless and can stay. To hide Docker's "Debug with Gordon" hint, run
+> `export DOCKER_CLI_HINTS=false` once in the terminal (PowerShell: `$env:DOCKER_CLI_HINTS="false"`).
+
 Requires [Docker](https://docs.docker.com/get-docker/). Every release publishes the image to
-GitHub Container Registry, so there is nothing to build. Pull it:
+GitHub Container Registry, so there is nothing to build.
+
+**Log in to GitHub Container Registry first.** The image is private to the
+`esade-swdev-2026` organisation, so a pull without logging in fails with `unauthorized`. You
+need a GitHub account with access to the organisation. You only log in once per machine. With
+the [GitHub CLI](https://cli.github.com/) (the first command opens a browser to approve):
 
 ```
-docker pull ghcr.io/esade-swdev-2026/text-adventure:latest
+gh auth refresh -h github.com -s read:packages
+gh auth token | docker login ghcr.io -u <your-github-username> --password-stdin
+```
+
+Without the GitHub CLI, create a
+[personal access token (classic)](https://github.com/settings/tokens/new?scopes=read:packages)
+with the `read:packages` scope, then run `docker login ghcr.io`, enter your GitHub username,
+and paste the token as the password. Either way, Docker prints `Login Succeeded`. If the pull
+below still says `unauthorized` or `denied` after that, your account has no access to the
+package: ask an owner of the organisation. Then pull the image:
+
+```
+docker pull --platform linux/amd64 ghcr.io/esade-swdev-2026/text-adventure:latest
 ```
 
 The world (the story, the rooms and their art) lives **outside the image**. Download it from
@@ -126,17 +149,23 @@ curl -L -o world.zip https://github.com/esade-swdev-2026/text-adventure/releases
 unzip world.zip -d my-world
 ```
 
+You can also download `world.zip` from the
+[latest release page](https://github.com/esade-swdev-2026/text-adventure/releases/latest) in a
+browser and extract it into a folder called `my-world` with any tool.
+
 `my-world/` now holds `world.json` and the `art/` folder it names. Mount it into the
-container read-only (`:ro`) and play it. The game is interactive, so `play` needs `-it`:
+container read-only (`:ro`) and play it. The game is interactive, so `play` needs `-it`. Make
+the terminal window at least 100 × 44 first (a new macOS Terminal window is 80 × 24); if it is
+smaller, the game asks you to resize it:
 
 ```
-docker run --rm -it -v "$PWD/my-world":/world:ro ghcr.io/esade-swdev-2026/text-adventure:latest play --world /world/world.json
+docker run --rm -it --platform linux/amd64 -v "$PWD/my-world":/world:ro ghcr.io/esade-swdev-2026/text-adventure:latest play --world /world/world.json
 ```
 
 To check the mounted world loads and can be won without playing it (no `-it` needed):
 
 ```
-docker run --rm -v "$PWD/my-world":/world:ro ghcr.io/esade-swdev-2026/text-adventure:latest check /world/world.json
+docker run --rm --platform linux/amd64 -v "$PWD/my-world":/world:ro ghcr.io/esade-swdev-2026/text-adventure:latest check /world/world.json
 ```
 
 **The world changes without a rebuild.** Open `my-world/world.json`, change the room's
@@ -146,9 +175,16 @@ your new text. The image is the same one you pulled above. Only the mounted fold
 Any folder works the same way, as long as it holds the world file and every art file the
 world names, at the relative paths it gives them.
 
+**On Windows**, the commands above work as written in PowerShell, where `$PWD` is the current
+folder. If `curl` complains, download the zip in a browser as above, or use `curl.exe` instead
+of `curl`. If there is no `unzip`, run `mkdir my-world` then `tar -xf world.zip -C my-world`.
+In `cmd`, write `"%cd%\my-world"` instead of `"$PWD/my-world"`. In Git Bash, put `winpty` in
+front of the `docker run -it ...` command.
+
 To build the image yourself instead, run `docker build -t text-adventure .` in the cloned
-repository and use `text-adventure` in place of `ghcr.io/esade-swdev-2026/text-adventure:latest`
-in the commands above.
+repository, use `text-adventure` in place of `ghcr.io/esade-swdev-2026/text-adventure:latest`
+in the commands above, and leave out `--platform linux/amd64`: the image you build is made for
+your own machine, and Docker refuses to run it under a different platform.
 
 ## How to play
 
