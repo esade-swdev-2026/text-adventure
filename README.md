@@ -116,11 +116,26 @@ exit code 1
 > emulation, and a "platform does not match" warning is normal. On an Intel/AMD machine the flag
 > is harmless and can stay. To hide Docker's "Debug with Gordon" hint, run
 > `export DOCKER_CLI_HINTS=false` once in the terminal (PowerShell: `$env:DOCKER_CLI_HINTS="false"`).
-> If the pull says `unauthorized` or `denied`, run `docker login ghcr.io` (GitHub username, and a
-> token with `read:packages` as the password).
 
 Requires [Docker](https://docs.docker.com/get-docker/). Every release publishes the image to
-GitHub Container Registry, so there is nothing to build. Pull it:
+GitHub Container Registry, so there is nothing to build.
+
+**Log in to GitHub Container Registry first.** The image is private to the
+`esade-swdev-2026` organisation, so a pull without logging in fails with `unauthorized`. You
+need a GitHub account with access to the organisation. You only log in once per machine. With
+the [GitHub CLI](https://cli.github.com/) (the first command opens a browser to approve):
+
+```
+gh auth refresh -h github.com -s read:packages
+gh auth token | docker login ghcr.io -u <your-github-username> --password-stdin
+```
+
+Without the GitHub CLI, create a
+[personal access token (classic)](https://github.com/settings/tokens/new?scopes=read:packages)
+with the `read:packages` scope, then run `docker login ghcr.io`, enter your GitHub username,
+and paste the token as the password. Either way, Docker prints `Login Succeeded`. If the pull
+below still says `unauthorized` or `denied` after that, your account has no access to the
+package: ask an owner of the organisation. Then pull the image:
 
 ```
 docker pull --platform linux/amd64 ghcr.io/esade-swdev-2026/text-adventure:latest
